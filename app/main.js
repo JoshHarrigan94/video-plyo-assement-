@@ -164,6 +164,63 @@ downloadJsonBtn.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+function renderMetricSummary(analysis) {
+  if (!metricSummary) return;
+
+  const metrics = analysis?.metrics?.values || {};
+  const confidence = analysis?.confidence?.overall;
+
+  metricSummary.innerHTML = `
+    <div class="summary-item">
+      <span>Contacts</span>
+      <strong>${formatMetric(metrics.contactCount, 0)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Flight Time</span>
+      <strong>${formatMetric(metrics.flightTime, 3)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Ground Contact</span>
+      <strong>${formatMetric(metrics.groundContactTime, 3)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Jump Height</span>
+      <strong>${formatJumpHeight(metrics.jumpHeight)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>RSI</span>
+      <strong>${formatMetric(metrics.rsi, 2)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Confidence</span>
+      <strong>${confidence ? `${confidence.score}%` : "--"}</strong>
+    </div>
+  `;
+}
+
+function formatMetric(metric, decimals = 2) {
+  if (!metric || metric.value === null || metric.value === undefined) return "--";
+
+  const value = Number(metric.value);
+  if (!Number.isFinite(value)) return "--";
+
+  return `${value.toFixed(decimals)} ${metric.unit || ""}`.trim();
+}
+
+function formatJumpHeight(metric) {
+  if (!metric || metric.value === null || metric.value === undefined) return "--";
+
+  const metres = Number(metric.value);
+  if (!Number.isFinite(metres)) return "--";
+
+  return `${(metres * 100).toFixed(1)} cm`;
+}
+
 function setProgress(percent, label) {
   if (!analysisProgress || !progressFill || !progressPercent || !progressLabel) return;
 
