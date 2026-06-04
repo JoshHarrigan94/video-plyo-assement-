@@ -10,6 +10,12 @@ const clearPoseBtn = document.getElementById("clearPoseBtn");
 const poseCanvas = document.getElementById("poseCanvas");
 const signalSummary = document.getElementById("signalSummary");
 const eventTimeline = document.getElementById("eventTimeline");
+const prevEventBtn = document.getElementById("prevEventBtn");
+const nextEventBtn = document.getElementById("nextEventBtn");
+
+let timelineRows = [];
+let activeTimelineIndex = -1;
+
 
 let latestAnalysis = null;
 let latestVideoUrl = null;
@@ -72,6 +78,10 @@ renderEventTimeline(latestAnalysis);
   downloadJsonBtn.disabled = true;
   drawPoseBtn.disabled = true;
   clearPoseBtn.disabled = true;
+  timelineRows = [];
+activeTimelineIndex = -1;
+prevEventBtn.disabled = true;
+nextEventBtn.disabled = true;
   clearPoseOverlay();
 
   try {
@@ -399,6 +409,11 @@ function renderEventTimeline(analysis) {
     return aTime - bTime;
   });
   
+  timelineRows = rows;
+activeTimelineIndex = rows.length ? 0 : -1;
+prevEventBtn.disabled = rows.length <= 1;
+nextEventBtn.disabled = rows.length <= 1;
+  
   for (const impact of audioImpacts) {
   rows.push({
     type: "audio",
@@ -428,6 +443,9 @@ function renderEventTimeline(analysis) {
 
 eventTimeline.querySelectorAll(".event-row").forEach(row => {
   row.addEventListener("click", () => {
+    goToTimelineEvent(Number(row.dataset.index));
+  });
+});
     const time = Number(row.dataset.time);
 
     if (!Number.isFinite(time)) return;
@@ -469,4 +487,63 @@ function formatFlags(flags = []) {
   if (!flags.length) return "no flags";
 
   return flags.slice(0, 2).join(", ");
+}
+
+prevEventBtn.addEventListener("click", () => {
+  if (!timelineRows.length) return;
+
+  const nextIndex =
+    activeTimelineIndex <= 0
+      ? timelineRows.length - 1
+      : activeTimelineIndex - 1;
+
+  goToTimelineEvent(nextIndex);
+});
+
+nextEventBtn.addEventListener("click", () => {
+  if (!timelineRows.length) return;
+
+  const nextIndex =
+    activeTimelineIndex >= timelineRows.length - 1
+      ? 0
+      : activeTimelineIndex + 1;
+
+  goToTimelineEvent(nextIndex);
+});
+
+function goToTimelineEvent(index) {
+  if (!timelineRows.length) return;
+
+  const rowData = timelineRows[index];
+
+  if (!rowData) return;
+
+  const time = Number(rowData.time);
+
+  if (!Number.isFinite(time)) return;
+
+  activeTimelineIndex = index;
+
+  videoPreview.currentTime = Math.max(0, time - 0.08);
+  videoPreview.pause();
+
+  eventTimeline
+    .querySelectorAll(".event-row")
+    .forEach(item => item.classList.remove("active"));
+
+  const activeRow = eventTimeline.querySelector(
+    `.event-row[data-index="${index}"]`
+  );
+
+  if (activeRow) {
+    activeRow.classList.add("active");
+    activeRow.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest"
+    });
+  }
+
+  setTimeout(() => {
+    drawPoseOverlay();
+  }, 80);
 }
