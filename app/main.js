@@ -280,9 +280,14 @@ function renderMetricSummary(analysis) {
     </div>
 
     <div class="summary-item">
-      <span>Jump Height</span>
-      <strong>${formatJumpHeight(metrics.jumpHeight)}</strong>
-    </div>
+  <span>Jump Height</span>
+  <strong>${formatJumpHeight(metrics.jumpHeight)}</strong>
+</div>
+
+<div class="summary-item">
+  <span>Box Height Estimate</span>
+  <strong>${formatJumpHeight(metrics.boxHeightEstimate)}</strong>
+</div>
 
     <div class="summary-item">
       <span>RSI</span>
