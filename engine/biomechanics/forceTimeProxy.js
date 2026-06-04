@@ -284,7 +284,7 @@ function detectForceTimeEvents({
   const propulsivePeak = findDominantPeak({
     curve,
     key: "propulsiveScore",
-    minValue: 0.45,
+    minValue: 0.38,
     preferLaterThanSec: 0.4
   });
 
