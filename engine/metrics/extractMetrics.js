@@ -1,3 +1,4 @@
+import { estimateBoxJumpPhysics } from "../biomechanics/boxJumpPhysics.js";
 export async function extractMetrics(analysis) {
   const takeOffs = analysis.events?.takeOffs || [];
   const landings = analysis.events?.landings || [];
@@ -9,7 +10,27 @@ export async function extractMetrics(analysis) {
 
   const averageFlightTime = averageDuration(flightWindows);
   const averageContactTime = averageDuration(contactWindows);
-  const jumpHeightM = estimateJumpHeightFromFlightTime(averageFlightTime);
+  const boxJumpPhysics = isBoxJump
+  ? estimateBoxJumpPhysics({
+      takeoff: takeOffs[0] || null,
+      landing: landings[0] || null,
+      centreOfMass: analysis.signals?.centreOfMass || null,
+      athlete: analysis.athlete || {}
+    })
+  : null;
+
+const jumpHeightM = isBoxJump
+  ? null
+  : estimateJumpHeightFromFlightTime(averageFlightTime);
+
+  const movementType =
+  analysis.events?.movementType ||
+  analysis.input?.options?.movementType ||
+  analysis.input?.movementType ||
+  "generic_jump";
+
+const isBoxJump =
+  movementType === "seated_box_jump";
 
   const metrics = {
     contactCount: buildMetric({
@@ -87,16 +108,34 @@ export async function extractMetrics(analysis) {
     }),
 
     jumpHeight: buildMetric({
-      id: "jump_height",
-      label: "Estimated Jump Height",
-      value: jumpHeightM,
-      unit: "m",
-      source: "flight_time",
-      confidence: null,
-      flags: jumpHeightM
-        ? ["derived_from_candidate_flight_time"]
-        : ["insufficient_flight_time"]
-    }),
+  id: "jump_height",
+  label: isBoxJump
+    ? "Estimated Jump Height"
+    : "Estimated Jump Height",
+  value: jumpHeightM,
+  unit: "m",
+  source: isBoxJump
+    ? "suppressed_for_box_jump"
+    : "flight_time",
+  confidence: null,
+  flags: isBoxJump
+    ? ["same_height_jump_height_suppressed_for_box_jump"]
+    : jumpHeightM
+      ? ["derived_from_candidate_flight_time"]
+      : ["insufficient_flight_time"]
+}),
+
+boxHeightEstimate: buildMetric({
+  id: "box_height_estimate",
+  label: "Estimated Box / Landing Height",
+  value: boxJumpPhysics?.selectedEstimate?.valueM ?? null,
+  unit: "m",
+  source: boxJumpPhysics?.selectedEstimate?.method || "box_jump_physics",
+  confidence: boxJumpPhysics?.selectedEstimate?.confidence ?? null,
+  flags: isBoxJump
+    ? boxJumpPhysics?.selectedEstimate?.flags || ["box_height_estimate_unavailable"]
+    : ["not_applicable"]
+}),
 
     rsi: buildMetric({
       id: "reactive_strength_index",
@@ -120,6 +159,7 @@ export async function extractMetrics(analysis) {
       flight: flightWindows,
       contact: contactWindows
     },
+    boxJumpPhysics,
     flags: [
       "metrics_candidate_based",
       "not_validation_grade",
