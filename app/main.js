@@ -9,6 +9,8 @@ const drawPoseBtn = document.getElementById("drawPoseBtn");
 const clearPoseBtn = document.getElementById("clearPoseBtn");
 const poseCanvas = document.getElementById("poseCanvas");
 const signalSummary = document.getElementById("signalSummary");
+const eventTimeline = document.getElementById("eventTimeline");
+
 let latestAnalysis = null;
 let latestVideoUrl = null;
 
@@ -66,6 +68,7 @@ form.addEventListener("submit", async (event) => {
   output.textContent = "Running analysis scaffold...";
 renderSignalSummary(latestAnalysis);
 renderMetricSummary(latestAnalysis);
+renderEventTimeline(latestAnalysis);
   downloadJsonBtn.disabled = true;
   drawPoseBtn.disabled = true;
   clearPoseBtn.disabled = true;
@@ -338,4 +341,100 @@ function formatPercentFrom100(value) {
   if (!Number.isFinite(number)) return "--";
 
   return `${Math.round(number)}%`;
+}
+
+function renderEventTimeline(analysis) {
+  if (!eventTimeline) return;
+
+  const takeOffs = analysis.events?.takeOffs || [];
+  const landings = analysis.events?.landings || [];
+  const contactWindows = analysis.metrics?.windows?.contact || [];
+  const flightWindows = analysis.metrics?.windows?.flight || [];
+
+  const rows = [];
+
+  for (const event of takeOffs) {
+    rows.push({
+      type: "takeoff",
+      time: event.timeSec,
+      label: "Take-off",
+      detail: `Frame ${event.frameIndex} · ${formatTime(event.timeSec)} · ${formatFlags(event.flags)}`,
+      confidence: event.confidence
+    });
+  }
+
+  for (const event of landings) {
+    rows.push({
+      type: "landing",
+      time: event.timeSec,
+      label: "Landing",
+      detail: `Frame ${event.frameIndex} · ${formatTime(event.timeSec)} · ${formatFlags(event.flags)}`,
+      confidence: event.confidence
+    });
+  }
+
+  for (const window of flightWindows) {
+    rows.push({
+      type: "flight",
+      time: window.startTimeSec,
+      label: "Flight",
+      detail: `${formatTime(window.startTimeSec)} → ${formatTime(window.endTimeSec)} · ${window.durationSec}s`,
+      confidence: window.confidence
+    });
+  }
+
+  for (const window of contactWindows) {
+    rows.push({
+      type: "contact",
+      time: window.startTimeSec,
+      label: "Contact",
+      detail: `${formatTime(window.startTimeSec)} → ${formatTime(window.endTimeSec)} · ${window.durationSec}s`,
+      confidence: window.confidence
+    });
+  }
+
+  rows.sort((a, b) => {
+    const aTime = Number.isFinite(a.time) ? a.time : Infinity;
+    const bTime = Number.isFinite(b.time) ? b.time : Infinity;
+    return aTime - bTime;
+  });
+
+  if (!rows.length) {
+    eventTimeline.innerHTML = `
+      <p class="hint">
+        No event candidates detected yet. Try a clearer full-body video with visible feet and one obvious jump.
+      </p>
+    `;
+    return;
+  }
+
+  eventTimeline.innerHTML = rows.map(row => `
+    <div class="event-row">
+      <div class="event-type ${row.type}">${row.label}</div>
+      <div class="event-detail">${row.detail}</div>
+      <div class="event-confidence">${formatConfidence(row.confidence)}</div>
+    </div>
+  `).join("");
+}
+
+function formatTime(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return "--";
+
+  return `${number.toFixed(3)}s`;
+}
+
+function formatConfidence(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return "--";
+
+  return `${Math.round(number * 100)}%`;
+}
+
+function formatFlags(flags = []) {
+  if (!flags.length) return "no flags";
+
+  return flags.slice(0, 2).join(", ");
 }
