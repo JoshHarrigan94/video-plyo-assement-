@@ -1,6 +1,6 @@
-export async function startApp() {
-
 import { runPlyoAnalysis } from "../engine/index.js";
+
+export async function startApp() {
 const metricSummary = document.getElementById("metricSummary");
 const form = document.getElementById("analysisForm");
 const videoFileInput = document.getElementById("videoFile");
@@ -74,9 +74,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   output.textContent = "Running analysis scaffold...";
-renderSignalSummary(latestAnalysis);
-renderMetricSummary(latestAnalysis);
-renderEventTimeline(latestAnalysis);
+
   downloadJsonBtn.disabled = true;
   drawPoseBtn.disabled = true;
   clearPoseBtn.disabled = true;
@@ -98,6 +96,10 @@ nextEventBtn.disabled = true;
     };
 
     latestAnalysis = await runPlyoAnalysis(input);
+renderSignalSummary(latestAnalysis);
+renderMetricSummary(latestAnalysis);
+renderEventTimeline(latestAnalysis);
+
 
     output.textContent = JSON.stringify(latestAnalysis, null, 2);
 
