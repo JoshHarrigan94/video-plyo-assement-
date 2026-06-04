@@ -1,48 +1,90 @@
 import { runPlyoAnalysis } from "../engine/index.js";
 
 const form = document.getElementById("analysisForm");
-const videoFile = document.getElementById("videoFile");
+const videoFileInput = document.getElementById("videoFile");
 const videoPreview = document.getElementById("videoPreview");
 const output = document.getElementById("output");
 const downloadJsonBtn = document.getElementById("downloadJsonBtn");
-let lastAnalysis = null;
 
-videoFile.addEventListener("change", () => {
-  const file = videoFile.files?.[0];
+let latestAnalysis = null;
+let latestVideoUrl = null;
+
+videoFileInput.addEventListener("change", () => {
+  const file = videoFileInput.files?.[0];
+
   if (!file) return;
-  videoPreview.src = URL.createObjectURL(file);
+
+  if (latestVideoUrl) {
+    URL.revokeObjectURL(latestVideoUrl);
+  }
+
+  latestVideoUrl = URL.createObjectURL(file);
+  videoPreview.src = latestVideoUrl;
 });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const file = videoFile.files?.[0];
-  if (!file) return;
 
-  output.textContent = "Running engine scaffold...";
+  const videoFile = videoFileInput.files?.[0];
+
+  if (!videoFile) {
+    output.textContent = "Please upload a video first.";
+    return;
+  }
+
+  output.textContent = "Running analysis scaffold...";
+
   downloadJsonBtn.disabled = true;
 
-  const athlete = {
-    heightCm: Number(document.getElementById("heightCm").value),
-    weightKg: Number(document.getElementById("weightKg").value),
-    sexGender: document.getElementById("sexGender").value
-  };
-
   try {
-    lastAnalysis = await runPlyoAnalysis({ file, athlete });
-    output.textContent = JSON.stringify(lastAnalysis, null, 2);
+    const input = {
+      videoFile,
+      heightCm: document.getElementById("heightCm").value,
+      weightKg: document.getElementById("weightKg").value,
+      sexGender: document.getElementById("sexGender").value,
+
+      options: {
+        useSmartCrop: true,
+        useAudio: true,
+        useMLRefinement: false
+      }
+    };
+
+    latestAnalysis = await runPlyoAnalysis(input);
+
+    output.textContent = JSON.stringify(latestAnalysis, null, 2);
+
     downloadJsonBtn.disabled = false;
   } catch (error) {
-    output.textContent = JSON.stringify({ error: error.message, stack: error.stack }, null, 2);
+    console.error(error);
+
+    output.textContent = JSON.stringify(
+      {
+        status: "failed",
+        message: error.message
+      },
+      null,
+      2
+    );
   }
 });
 
 downloadJsonBtn.addEventListener("click", () => {
-  if (!lastAnalysis) return;
-  const blob = new Blob([JSON.stringify(lastAnalysis, null, 2)], { type: "application/json" });
+  if (!latestAnalysis) return;
+
+  const blob = new Blob(
+    [JSON.stringify(latestAnalysis, null, 2)],
+    {
+      type: "application/json"
+    }
+  );
+
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `plyo-analysis-${Date.now()}.json`;
-  a.click();
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `${latestAnalysis.id || "plyo-analysis"}.json`;
+  link.click();
+
   URL.revokeObjectURL(url);
 });
