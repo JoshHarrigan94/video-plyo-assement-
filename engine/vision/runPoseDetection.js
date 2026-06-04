@@ -86,6 +86,7 @@ async function getPoseLandmarker() {
     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm"
   );
 
+  try {
   cachedPoseLandmarker = await PoseLandmarker.createFromOptions(vision, {
     baseOptions: {
       modelAssetPath:
@@ -95,6 +96,19 @@ async function getPoseLandmarker() {
     runningMode: "VIDEO",
     numPoses: 1
   });
+} catch (gpuError) {
+  console.warn("GPU pose model failed. Falling back to CPU.", gpuError);
+
+  cachedPoseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath:
+        "https://storage.googleapis.com/mediapipe-models/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+      delegate: "CPU"
+    },
+    runningMode: "VIDEO",
+    numPoses: 1
+  });
+}
 
   return cachedPoseLandmarker;
 }
