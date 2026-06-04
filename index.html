@@ -182,6 +182,21 @@
     </button>
   </div>
 </div>
+
+<div class="card">
+  <div class="card-header-row">
+    <h2>Event Timeline</h2>
+
+    <div class="timeline-controls">
+      <button type="button" class="secondary" id="prevEventBtn" disabled>Prev</button>
+      <button type="button" class="secondary" id="nextEventBtn" disabled>Next</button>
+    </div>
+  </div>
+
+  <div id="eventTimeline" class="event-timeline">
+    <p class="hint">Run analysis to see detected events.</p>
+  </div>
+</div>
       
         <div class="card">
           <h2>Analysis Output</h2>
@@ -190,7 +205,7 @@
       </section>
     </section>
   </main>
-  <link rel="stylesheet" href="styles/main.css" />
+  
   <script type="module" src="./app/bootstrap.js"></script>
 </body>
 </html>
