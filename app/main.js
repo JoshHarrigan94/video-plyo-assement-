@@ -118,6 +118,9 @@ renderEventTimeline(latestAnalysis);
   movementStates: latestAnalysis.signals?.movementStateMachine?.summary,
   phaseSummary: latestAnalysis.signals?.phase?.summary,
   comSummary: latestAnalysis.signals?.centreOfMass?.summary,
+  forceTimeSummary: latestAnalysis.signals?.forceTimeProxy?.summary,
+  forceTimeEvents: latestAnalysis.signals?.forceTimeProxy?.events,
+  selectedJumpBout: latestAnalysis.signals?.forceTimeProxy?.selectedJumpBout,
   eventSummary: latestAnalysis.events
 };
 
