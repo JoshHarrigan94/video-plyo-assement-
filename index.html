@@ -121,6 +121,31 @@
       font: inherit;
     }
 
+.pose-preview {
+  position: relative;
+  width: 100%;
+  background: #020617;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.pose-preview video {
+  width: 100%;
+  max-height: 420px;
+  border: 0;
+  border-radius: 0;
+  display: block;
+}
+
+.pose-preview canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+    
     input,
     select {
       width: 100%;
@@ -293,11 +318,28 @@
         </p>
       </form>
 
-      <section class="stack">
-        <div class="card">
-          <h2>Video Preview</h2>
-          <video id="videoPreview" controls playsinline muted></video>
-        </div>
+      <div class="card">
+  <h2>Pose Preview</h2>
+
+  <div class="pose-preview">
+    <video id="videoPreview" controls playsinline muted></video>
+    <canvas id="poseCanvas"></canvas>
+  </div>
+
+  <div class="row" style="margin-top: 12px;">
+    <button type="button" class="secondary" id="drawPoseBtn" disabled>
+      Draw Pose Overlay
+    </button>
+
+    <button type="button" class="secondary" id="clearPoseBtn" disabled>
+      Clear Overlay
+    </button>
+  </div>
+
+  <p class="hint">
+    After analysis runs, draw the extracted MediaPipe landmarks over the video preview.
+  </p>
+</div>
 
         <div class="card">
           <h2>Analysis Output</h2>
