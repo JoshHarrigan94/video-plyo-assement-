@@ -5,9 +5,33 @@ const videoFileInput = document.getElementById("videoFile");
 const videoPreview = document.getElementById("videoPreview");
 const output = document.getElementById("output");
 const downloadJsonBtn = document.getElementById("downloadJsonBtn");
+const drawPoseBtn = document.getElementById("drawPoseBtn");
+const clearPoseBtn = document.getElementById("clearPoseBtn");
+const poseCanvas = document.getElementById("poseCanvas");
 
 let latestAnalysis = null;
 let latestVideoUrl = null;
+
+const POSE_CONNECTIONS = [
+  [11, 12],
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
+  [11, 23],
+  [12, 24],
+  [23, 24],
+  [23, 25],
+  [25, 27],
+  [24, 26],
+  [26, 28],
+  [27, 29],
+  [29, 31],
+  [28, 30],
+  [30, 32],
+  [27, 31],
+  [28, 32]
+];
 
 videoFileInput.addEventListener("change", () => {
   const file = videoFileInput.files?.[0];
@@ -20,6 +44,13 @@ videoFileInput.addEventListener("change", () => {
 
   latestVideoUrl = URL.createObjectURL(file);
   videoPreview.src = latestVideoUrl;
+
+  clearPoseOverlay();
+
+  latestAnalysis = null;
+  downloadJsonBtn.disabled = true;
+  drawPoseBtn.disabled = true;
+  clearPoseBtn.disabled = true;
 });
 
 form.addEventListener("submit", async (event) => {
@@ -35,6 +66,9 @@ form.addEventListener("submit", async (event) => {
   output.textContent = "Running analysis scaffold...";
 
   downloadJsonBtn.disabled = true;
+  drawPoseBtn.disabled = true;
+  clearPoseBtn.disabled = true;
+  clearPoseOverlay();
 
   try {
     const input = {
@@ -42,12 +76,9 @@ form.addEventListener("submit", async (event) => {
       heightCm: document.getElementById("heightCm").value,
       weightKg: document.getElementById("weightKg").value,
       sexGender: document.getElementById("sexGender").value,
-
-      options: {
-        useSmartCrop: true,
-        useAudio: true,
-        useMLRefinement: false
-      }
+      useSmartCrop: true,
+      useAudio: true,
+      useMLRefinement: false
     };
 
     latestAnalysis = await runPlyoAnalysis(input);
@@ -55,6 +86,14 @@ form.addEventListener("submit", async (event) => {
     output.textContent = JSON.stringify(latestAnalysis, null, 2);
 
     downloadJsonBtn.disabled = false;
+
+    const hasLandmarks =
+      latestAnalysis.pose?.landmarksByFrame?.some(
+        frame => frame.landmarks?.length
+      );
+
+    drawPoseBtn.disabled = !hasLandmarks;
+    clearPoseBtn.disabled = !hasLandmarks;
   } catch (error) {
     console.error(error);
 
@@ -67,6 +106,14 @@ form.addEventListener("submit", async (event) => {
       2
     );
   }
+});
+
+drawPoseBtn.addEventListener("click", () => {
+  drawPoseOverlay();
+});
+
+clearPoseBtn.addEventListener("click", () => {
+  clearPoseOverlay();
 });
 
 downloadJsonBtn.addEventListener("click", () => {
@@ -87,4 +134,115 @@ downloadJsonBtn.addEventListener("click", () => {
   link.click();
 
   URL.revokeObjectURL(url);
+});
+
+function drawPoseOverlay() {
+  if (!latestAnalysis) return;
+
+  const frame = getClosestPoseFrame();
+
+  if (!frame?.landmarks?.length) {
+    output.textContent += "\n\nNo landmarks available for current video time.";
+    return;
+  }
+
+  resizePoseCanvas();
+
+  const ctx = poseCanvas.getContext("2d");
+  const landmarks = frame.landmarks;
+
+  ctx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+
+  drawConnections(ctx, landmarks);
+  drawLandmarks(ctx, landmarks);
+}
+
+function getClosestPoseFrame() {
+  const frames = latestAnalysis?.pose?.landmarksByFrame || [];
+
+  if (!frames.length) return null;
+
+  const currentTime = videoPreview.currentTime || 0;
+
+  let closest = frames[0];
+  let smallestDelta = Math.abs((closest.timeSec || 0) - currentTime);
+
+  for (const frame of frames) {
+    const delta = Math.abs((frame.timeSec || 0) - currentTime);
+
+    if (delta < smallestDelta) {
+      closest = frame;
+      smallestDelta = delta;
+    }
+  }
+
+  return closest;
+}
+
+function drawConnections(ctx, landmarks) {
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(56, 189, 248, 0.9)";
+
+  for (const [a, b] of POSE_CONNECTIONS) {
+    const pointA = landmarks[a];
+    const pointB = landmarks[b];
+
+    if (!isUsable(pointA) || !isUsable(pointB)) continue;
+
+    ctx.beginPath();
+    ctx.moveTo(pointA.x * poseCanvas.width, pointA.y * poseCanvas.height);
+    ctx.lineTo(pointB.x * poseCanvas.width, pointB.y * poseCanvas.height);
+    ctx.stroke();
+  }
+}
+
+function drawLandmarks(ctx, landmarks) {
+  for (const landmark of landmarks) {
+    if (!isUsable(landmark)) continue;
+
+    const x = landmark.x * poseCanvas.width;
+    const y = landmark.y * poseCanvas.height;
+
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(34, 197, 94, 0.95)";
+    ctx.fill();
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.stroke();
+  }
+}
+
+function isUsable(point) {
+  if (!point) return false;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
+
+  if (
+    Number.isFinite(point.visibility) &&
+    point.visibility < 0.35
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function clearPoseOverlay() {
+  resizePoseCanvas();
+
+  const ctx = poseCanvas.getContext("2d");
+  ctx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+}
+
+function resizePoseCanvas() {
+  const rect = videoPreview.getBoundingClientRect();
+
+  poseCanvas.width = Math.max(1, Math.round(rect.width));
+  poseCanvas.height = Math.max(1, Math.round(rect.height));
+}
+
+window.addEventListener("resize", () => {
+  if (!latestAnalysis) return;
+  drawPoseOverlay();
 });
