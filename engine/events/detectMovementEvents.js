@@ -2,6 +2,7 @@ export async function detectMovementEvents(analysis) {
   const joints = analysis.signals?.joints || {};
   const velocities = analysis.signals?.velocities || {};
   const angles = analysis.signals?.angles || {};
+  const audioImpacts = analysis.audio?.impacts || [];
 
   const hipY = joints.hipY || [];
   const ankleY = joints.ankleY || [];
@@ -11,14 +12,6 @@ export async function detectMovementEvents(analysis) {
   if (!hipY.length || !ankleY.length) {
     analysis.events.status = "skipped";
     analysis.events.flags.push("event_detection_skipped_no_signals");
-
-    analysis.logs.push({
-      time: new Date().toISOString(),
-      level: "warn",
-      module: "events",
-      message: "Event detection skipped because no usable joint signals exist."
-    });
-
     return analysis;
   }
 
@@ -34,35 +27,31 @@ export async function detectMovementEvents(analysis) {
 
   const candidates = detectCandidates(movement, analysis.video?.fps || 30);
   const classified = classifyEvents(candidates, movement);
+  const validated = validateWithAudio(classified, audioImpacts);
 
   analysis.events = {
     ...analysis.events,
     status: "complete",
     candidates,
-    final: classified.final,
-    takeOffs: classified.takeOffs,
-    landings: classified.landings,
-    contacts: classified.contacts,
-    flags: buildEventFlags(candidates, classified)
+    final: validated.final,
+    takeOffs: validated.takeOffs,
+    landings: validated.landings,
+    contacts: validated.contacts,
+    flags: buildEventFlags(candidates, validated, audioImpacts)
   };
 
   analysis.logs.push({
     time: new Date().toISOString(),
     level: "info",
     module: "events",
-    message: `Event detection completed with ${candidates.length} candidate(s), ${classified.takeOffs.length} take-off(s), ${classified.landings.length} landing(s).`
+    message: `Event detection completed with ${validated.takeOffs.length} take-off(s), ${validated.landings.length} landing(s), ${audioImpacts.length} audio impact(s).`
   });
 
   return analysis;
 }
 
 function buildMovementSeries({ hipY, ankleY, hipVelocity, ankleVelocity, angles }) {
-  const length = Math.max(
-    hipY.length,
-    ankleY.length,
-    hipVelocity.length,
-    ankleVelocity.length
-  );
+  const length = Math.max(hipY.length, ankleY.length, hipVelocity.length, ankleVelocity.length);
 
   const leftKnee = angles.leftKneeAngle || [];
   const rightKnee = angles.rightKneeAngle || [];
@@ -75,32 +64,16 @@ function buildMovementSeries({ hipY, ankleY, hipVelocity, ankleVelocity, angles 
     const hipVel = clean(hipVelocity[i]);
     const ankleVel = clean(ankleVelocity[i]);
 
-    const kneeAngle = average([
-      leftKnee[i],
-      rightKnee[i]
-    ]);
-
     series.push({
       frameIndex: i,
       hipY: hip,
       ankleY: ankle,
       hipVelocity: hipVel,
       ankleVelocity: ankleVel,
-      kneeAngle,
-
-      /*
-        In image coordinates:
-        y decreasing = body moving upward
-        y increasing = body moving downward
-      */
-      upwardDrive:
-        Number.isFinite(hipVel) ? -hipVel : null,
-
-      downwardMotion:
-        Number.isFinite(hipVel) ? hipVel : null,
-
-      footMotion:
-        Number.isFinite(ankleVel) ? Math.abs(ankleVel) : null
+      kneeAngle: average([leftKnee[i], rightKnee[i]]),
+      upwardDrive: Number.isFinite(hipVel) ? -hipVel : null,
+      downwardMotion: Number.isFinite(hipVel) ? hipVel : null,
+      footMotion: Number.isFinite(ankleVel) ? Math.abs(ankleVel) : null
     });
   }
 
@@ -110,21 +83,9 @@ function buildMovementSeries({ hipY, ankleY, hipVelocity, ankleVelocity, angles 
 function detectCandidates(series, fps) {
   const candidates = [];
 
-  const upwardValues = series
-    .map(p => p.upwardDrive)
-    .filter(Number.isFinite);
-
-  const downwardValues = series
-    .map(p => p.downwardMotion)
-    .filter(Number.isFinite);
-
-  const footMotionValues = series
-    .map(p => p.footMotion)
-    .filter(Number.isFinite);
-
-  const upwardThreshold = percentile(upwardValues, 75);
-  const downwardThreshold = percentile(downwardValues, 75);
-  const footMotionThreshold = percentile(footMotionValues, 75);
+  const upwardThreshold = percentile(series.map(p => p.upwardDrive), 75);
+  const downwardThreshold = percentile(series.map(p => p.downwardMotion), 75);
+  const footMotionThreshold = percentile(series.map(p => p.footMotion), 75);
 
   for (let i = 1; i < series.length - 1; i++) {
     const prev = series[i - 1];
@@ -188,27 +149,19 @@ function detectCandidates(series, fps) {
   return mergeNearbyCandidates(candidates, fps);
 }
 
-function classifyEvents(candidates, series) {
+function classifyEvents(candidates) {
   const takeOffs = [];
   const landings = [];
-  const contacts = [];
   const final = [];
 
   for (const candidate of candidates) {
-    const point = series[candidate.frameIndex];
-
-    if (!point) continue;
-
     if (candidate.type === "upward_drive_peak") {
       const event = {
         ...candidate,
         type: "takeoff_candidate",
         source: "pose_signal",
         confidence: round(candidate.confidence + 0.1, 2),
-        flags: [
-          ...candidate.flags,
-          "requires_validation"
-        ]
+        flags: [...candidate.flags, "requires_validation"]
       };
 
       takeOffs.push(event);
@@ -225,10 +178,7 @@ function classifyEvents(candidates, series) {
         type: "landing_candidate",
         source: "pose_signal",
         confidence: round(candidate.confidence + 0.08, 2),
-        flags: [
-          ...candidate.flags,
-          "requires_audio_or_visual_validation"
-        ]
+        flags: [...candidate.flags, "requires_audio_or_visual_validation"]
       };
 
       landings.push(event);
@@ -239,8 +189,80 @@ function classifyEvents(candidates, series) {
     final.push(candidate);
   }
 
-  for (let i = 0; i < landings.length; i++) {
-    const landing = landings[i];
+  return {
+    final,
+    takeOffs,
+    landings,
+    contacts: buildContactWindows(landings, takeOffs)
+  };
+}
+
+function validateWithAudio(classified, audioImpacts) {
+  const maxDeltaSec = 0.12;
+
+  const landings = classified.landings.map(landing => {
+    const nearestImpact = findNearestAudioImpact(landing.timeSec, audioImpacts);
+
+    if (!nearestImpact) {
+      return {
+        ...landing,
+        audioValidation: {
+          status: "not_available",
+          nearestImpact: null,
+          deltaSec: null
+        },
+        flags: [...landing.flags, "no_audio_impact_available"]
+      };
+    }
+
+    const deltaSec = Math.abs(nearestImpact.timeSec - landing.timeSec);
+    const matched = deltaSec <= maxDeltaSec;
+
+    return {
+      ...landing,
+      confidence: matched
+        ? round(Math.min(0.95, landing.confidence + 0.18), 2)
+        : round(Math.max(0.15, landing.confidence - 0.12), 2),
+
+      audioValidation: {
+        status: matched ? "matched" : "not_matched",
+        nearestImpact,
+        deltaSec: round(deltaSec, 4),
+        toleranceSec: maxDeltaSec
+      },
+
+      flags: matched
+        ? [...landing.flags, "audio_validated"]
+        : [...landing.flags, "audio_not_aligned"]
+    };
+  });
+
+  const takeOffs = classified.takeOffs;
+
+  const contacts = buildContactWindows(landings, takeOffs);
+
+  const final = [
+    ...takeOffs,
+    ...landings,
+    ...contacts
+  ].sort((a, b) => {
+    const aTime = a.timeSec ?? a.startTimeSec ?? Infinity;
+    const bTime = b.timeSec ?? b.startTimeSec ?? Infinity;
+    return aTime - bTime;
+  });
+
+  return {
+    takeOffs,
+    landings,
+    contacts,
+    final
+  };
+}
+
+function buildContactWindows(landings, takeOffs) {
+  const contacts = [];
+
+  for (const landing of landings) {
     const nextTakeoff = takeOffs.find(
       takeoff => takeoff.frameIndex > landing.frameIndex
     );
@@ -255,18 +277,33 @@ function classifyEvents(candidates, series) {
       startTimeSec: landing.timeSec,
       endTimeSec: nextTakeoff.timeSec,
       durationSec: round(nextTakeoff.timeSec - landing.timeSec, 4),
-      source: "landing_to_next_takeoff",
+      source: "audio_validated_landing_to_next_takeoff",
       confidence: Math.min(landing.confidence, nextTakeoff.confidence),
-      flags: ["candidate_contact_window"]
+      flags: landing.audioValidation?.status === "matched"
+        ? ["candidate_contact_window", "landing_audio_validated"]
+        : ["candidate_contact_window"]
     });
   }
 
-  return {
-    final,
-    takeOffs,
-    landings,
-    contacts
-  };
+  return contacts;
+}
+
+function findNearestAudioImpact(timeSec, impacts) {
+  if (!Number.isFinite(timeSec) || !impacts.length) return null;
+
+  let nearest = null;
+  let nearestDelta = Infinity;
+
+  for (const impact of impacts) {
+    const delta = Math.abs(impact.timeSec - timeSec);
+
+    if (delta < nearestDelta) {
+      nearest = impact;
+      nearestDelta = delta;
+    }
+  }
+
+  return nearest;
 }
 
 function mergeNearbyCandidates(candidates, fps) {
@@ -312,16 +349,14 @@ function makeCandidate({ index, frameIndex, fps, type, confidence, flags }) {
   };
 }
 
-function buildEventFlags(candidates, classified) {
-  const flags = [
-    "event_detection_v0_1",
-    "events_are_candidates_not_validated_truth"
-  ];
+function buildEventFlags(candidates, classified, audioImpacts) {
+  const flags = ["event_detection_v0_2", "events_are_candidates_not_validated_truth"];
 
   if (!candidates.length) flags.push("no_event_candidates_detected");
   if (!classified.takeOffs.length) flags.push("no_takeoff_candidates_detected");
   if (!classified.landings.length) flags.push("no_landing_candidates_detected");
   if (!classified.contacts.length) flags.push("no_contact_windows_detected");
+  if (!audioImpacts.length) flags.push("no_audio_impacts_for_validation");
 
   return flags;
 }
@@ -336,33 +371,21 @@ function isUsable(point) {
 }
 
 function percentile(values, p) {
-  const cleanValues = values
-    .filter(Number.isFinite)
-    .sort((a, b) => a - b);
-
+  const cleanValues = values.filter(Number.isFinite).sort((a, b) => a - b);
   if (!cleanValues.length) return Infinity;
-
   const index = Math.floor((p / 100) * (cleanValues.length - 1));
   return cleanValues[index];
 }
 
 function average(values) {
-  const cleanValues = values
-    .map(Number)
-    .filter(Number.isFinite);
-
+  const cleanValues = values.map(Number).filter(Number.isFinite);
   if (!cleanValues.length) return null;
-
   return cleanValues.reduce((sum, value) => sum + value, 0) / cleanValues.length;
 }
 
 function frameToTime(frameIndex, fps) {
   const frameRate = Number(fps);
-
-  if (!Number.isFinite(frameRate) || frameRate <= 0) {
-    return null;
-  }
-
+  if (!Number.isFinite(frameRate) || frameRate <= 0) return null;
   return round(frameIndex / frameRate, 4);
 }
 
@@ -373,9 +396,7 @@ function clean(value, fallback = null) {
 
 function round(value, decimals = 3) {
   const number = Number(value);
-
   if (!Number.isFinite(number)) return null;
-
   const factor = Math.pow(10, decimals);
   return Math.round(number * factor) / factor;
 }
