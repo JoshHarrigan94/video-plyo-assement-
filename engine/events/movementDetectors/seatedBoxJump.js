@@ -1,207 +1,357 @@
 import {
-  buildMovementSeries,
   makeEvent,
   nearestAudioImpact,
-  percentile,
   round
 } from "./utils.js";
 
 export function detectSeatedBoxJumpEvents({
-  joints,
-  velocities,
-  angles,
+  analysis,
   audioImpacts,
   fps
 }) {
-  const series = buildMovementSeries({
-    joints,
-    velocities,
-    angles
+  const phase = analysis.signals?.phase;
+  const frames = phase?.frames || [];
+
+  if (!frames.length) {
+    return emptyResult("no_phase_signals_available");
+  }
+
+  const takeoff = findBiomechanicalTakeoff({
+    frames,
+    fps
   });
 
-  const upwardThreshold = percentile(series.map(p => p.upwardDrive), 92);
-  const downwardThreshold = percentile(series.map(p => p.downwardMotion), 88);
-  const footThreshold = percentile(series.map(p => p.footMotion), 88);
-
-  const takeoff = findPrimaryTakeoff(series, upwardThreshold, fps);
   const landing = takeoff
-    ? findFirstLandingAfterTakeoff({
-        series,
+    ? findBiomechanicalLanding({
+        frames,
         takeoff,
-        downwardThreshold,
-        footThreshold,
         audioImpacts,
         fps
       })
     : null;
 
-  const takeOffs = takeoff ? [takeoff] : [];
-  const landings = landing ? [landing] : [];
-
-  const contacts =
+  const flightWindow =
     takeoff && landing
-      ? []
-      : [];
-
-  const flight =
-    takeoff && landing
-      ? {
-          id: "flight_1",
-          type: "flight_window_candidate",
-          startFrame: takeoff.frameIndex,
-          endFrame: landing.frameIndex,
-          startTimeSec: takeoff.timeSec,
-          endTimeSec: landing.timeSec,
-          durationSec: round(landing.timeSec - takeoff.timeSec, 4),
-          confidence: Math.min(takeoff.confidence, landing.confidence),
-          source: "seated_box_jump_takeoff_to_landing",
-          flags: ["candidate_flight_window"]
-        }
+      ? buildFlightWindow(takeoff, landing)
       : null;
 
-  const final = [
-    ...takeOffs,
-    ...landings,
-    ...(flight ? [flight] : [])
-  ];
-
   return {
-    detector: "seated_box_jump",
-    candidates: final,
-    final,
-    takeOffs,
-    landings,
-    contacts,
-    phases: buildPhases({ takeoff, landing }),
-    flags: buildFlags({ takeoff, landing })
+    detector: "seated_box_jump_biomechanical_v0_2",
+
+    candidates: [
+      ...(takeoff ? [takeoff] : []),
+      ...(landing ? [landing] : []),
+      ...(flightWindow ? [flightWindow] : [])
+    ],
+
+    final: [
+      ...(takeoff ? [takeoff] : []),
+      ...(landing ? [landing] : []),
+      ...(flightWindow ? [flightWindow] : [])
+    ],
+
+    takeOffs: takeoff ? [takeoff] : [],
+    landings: landing ? [landing] : [],
+
+    /*
+      For seated box jump, we deliberately do not infer repeated contacts.
+      This prevents rocker/prep oscillations being counted as contacts.
+    */
+    contacts: [],
+
+    phases: buildPhases({
+      frames,
+      takeoff,
+      landing
+    }),
+
+    flags: buildDetectorFlags({
+      takeoff,
+      landing,
+      flightWindow,
+      phaseFlags: phase?.flags || []
+    })
   };
 }
 
-function findPrimaryTakeoff(series, threshold, fps) {
-  let best = null;
+function findBiomechanicalTakeoff({ frames, fps }) {
+  const validCandidates = [];
 
-  for (let i = 2; i < series.length - 2; i++) {
-    const point = series[i];
+  /*
+    We ignore the first 10% of the clip as likely setup/noise.
+    This avoids early seated rocking being treated as take-off.
+  */
 
-    const isStrongUpward =
-      point.upwardDrive >= threshold &&
-      point.upwardDrive > series[i - 1].upwardDrive &&
-      point.upwardDrive > series[i + 1].upwardDrive;
+  const startIndex = Math.max(1, Math.floor(frames.length * 0.1));
+  const endIndex = Math.max(startIndex + 1, frames.length - 2);
 
-    if (!isStrongUpward) continue;
+  for (let i = startIndex; i < endIndex; i++) {
+    const previous = frames[i - 1];
+    const current = frames[i];
+    const next = frames[i + 1];
 
-    if (!best || point.upwardDrive > best.score) {
-      best = {
-        frameIndex: i,
-        score: point.upwardDrive
-      };
-    }
+    if (!isUsablePhaseFrame(current)) continue;
+
+    const isTripleExtensionPeak =
+      current.tripleExtensionScore >= 0.55 &&
+      current.tripleExtensionScore >= safeNumber(previous.tripleExtensionScore) &&
+      current.tripleExtensionScore >= safeNumber(next.tripleExtensionScore);
+
+    const hasUnloading =
+      current.unloadingScore >= 0.5;
+
+    const hasUpwardCom =
+      current.upwardComVelocity >= 0.008;
+
+    const comMovingUp =
+      Number.isFinite(current.comY) &&
+      Number.isFinite(next.comY) &&
+      next.comY < current.comY;
+
+    const valid =
+      isTripleExtensionPeak &&
+      hasUnloading &&
+      hasUpwardCom &&
+      comMovingUp;
+
+    if (!valid) continue;
+
+    const score = weightedScore([
+      { value: current.tripleExtensionScore, weight: 0.38 },
+      { value: current.unloadingScore, weight: 0.32 },
+      { value: normalisePositive(current.upwardComVelocity, 0.025), weight: 0.2 },
+      { value: comMovingUp ? 1 : 0, weight: 0.1 }
+    ]);
+
+    validCandidates.push({
+      frameIndex: current.frameIndex,
+      score,
+      frame: current
+    });
   }
 
-  if (!best) return null;
+  if (!validCandidates.length) {
+    return null;
+  }
 
-  return makeEvent({
+  validCandidates.sort((a, b) => b.score - a.score);
+
+  const best = validCandidates[0];
+
+  const event = makeEvent({
     id: "takeoff_1",
     type: "takeoff_candidate",
     frameIndex: best.frameIndex,
     fps,
-    confidence: 0.62,
-    source: "seated_box_jump_detector",
-    flags: ["primary_upward_drive_peak", "rocking_motion_filtered"]
+    confidence: round(clamp(0.48 + best.score * 0.42, 0.48, 0.9), 2),
+    source: "seated_box_jump_biomechanical_detector",
+    flags: [
+      "triple_extension_validated",
+      "unloading_validated",
+      "upward_com_validated",
+      "rocking_motion_filtered"
+    ]
   });
+
+  event.phaseEvidence = {
+    tripleExtensionScore: best.frame.tripleExtensionScore,
+    unloadingScore: best.frame.unloadingScore,
+    upwardComVelocity: best.frame.upwardComVelocity,
+    hipExtensionVelocity: best.frame.hipExtensionVelocity,
+    kneeExtensionVelocity: best.frame.kneeExtensionVelocity,
+    ankleExtensionVelocity: best.frame.ankleExtensionVelocity,
+    comY: best.frame.comY
+  };
+
+  return event;
 }
 
-function findFirstLandingAfterTakeoff({
-  series,
+function findBiomechanicalLanding({
+  frames,
   takeoff,
-  downwardThreshold,
-  footThreshold,
   audioImpacts,
   fps
 }) {
-  const minFlightFrames = Math.max(2, Math.round(fps * 0.12));
-  const start = takeoff.frameIndex + minFlightFrames;
+  /*
+    Minimum flight protects us from treating immediate post-takeoff noise
+    as landing. For a box jump, true flight should not happen in 1–2 frames.
+  */
+
+  const minFlightSec = 0.18;
+  const maxFlightSec = 1.4;
+
+  const startFrame = takeoff.frameIndex + Math.max(2, Math.round(minFlightSec * fps));
+  const endFrame = Math.min(
+    frames.length - 1,
+    takeoff.frameIndex + Math.round(maxFlightSec * fps)
+  );
 
   let best = null;
 
-  for (let i = start; i < series.length - 1; i++) {
-    const point = series[i];
+  for (let i = startFrame; i < endFrame; i++) {
+    const previous = frames[i - 1];
+    const current = frames[i];
+    const next = frames[i + 1];
 
-    const downwardHit = point.downwardMotion >= downwardThreshold;
-    const footHit = point.footMotion >= footThreshold;
+    if (!current) continue;
 
-    if (!downwardHit && !footHit) continue;
+    const downwardCom =
+      Number.isFinite(current.upwardComVelocity) &&
+      current.upwardComVelocity < -0.004;
 
-    best = {
-      frameIndex: i,
-      score: Math.max(point.downwardMotion || 0, point.footMotion || 0)
-    };
+    const comStopsFalling =
+      previous &&
+      next &&
+      Number.isFinite(previous.comY) &&
+      Number.isFinite(current.comY) &&
+      Number.isFinite(next.comY) &&
+      current.comY >= previous.comY &&
+      next.comY <= current.comY;
 
-    break;
+    const ankleMotion =
+      Math.abs(safeNumber(current.ankleVelocity)) >= 0.004;
+
+    const likelyLanding =
+      downwardCom || comStopsFalling || ankleMotion;
+
+    if (!likelyLanding) continue;
+
+    const score = weightedScore([
+      { value: downwardCom ? 0.7 : 0, weight: 0.35 },
+      { value: comStopsFalling ? 0.85 : 0, weight: 0.35 },
+      { value: ankleMotion ? 0.55 : 0, weight: 0.15 },
+      { value: normalisePositive(Math.abs(safeNumber(current.ankleVelocity)), 0.018), weight: 0.15 }
+    ]);
+
+    if (!best || score > best.score) {
+      best = {
+        frameIndex: current.frameIndex,
+        score,
+        frame: current
+      };
+    }
   }
 
-  if (!best) {
-    const audio = audioImpacts.find(
-      impact => impact.timeSec > takeoff.timeSec + 0.12
-    );
+  let event = best
+    ? makeEvent({
+        id: "landing_1",
+        type: "landing_candidate",
+        frameIndex: best.frameIndex,
+        fps,
+        confidence: round(clamp(0.42 + best.score * 0.38, 0.42, 0.82), 2),
+        source: "seated_box_jump_biomechanical_detector",
+        flags: ["post_takeoff_landing_pattern"]
+      })
+    : null;
 
-    if (!audio) return null;
+  const audio = takeoff
+    ? findPostTakeoffAudioImpact({
+        takeoffTimeSec: takeoff.timeSec,
+        audioImpacts,
+        minFlightSec,
+        maxFlightSec
+      })
+    : null;
 
-    const frameIndex = Math.round(audio.timeSec * fps);
-
-    return {
+  if (!event && audio) {
+    event = {
       ...makeEvent({
         id: "landing_1",
         type: "landing_candidate",
-        frameIndex,
+        frameIndex: Math.round(audio.timeSec * fps),
         fps,
-        confidence: 0.58,
-        source: "seated_box_jump_audio_fallback",
+        confidence: 0.62,
+        source: "seated_box_jump_audio_landing_fallback",
         flags: ["audio_detected_landing_fallback"]
       }),
+      timeSec: audio.timeSec,
       audioValidation: {
         status: "matched",
         nearestImpact: audio,
-        deltaSec: 0
+        deltaSec: 0,
+        toleranceSec: 0.18
       }
     };
+
+    return event;
   }
 
-  const landing = makeEvent({
-    id: "landing_1",
-    type: "landing_candidate",
-    frameIndex: best.frameIndex,
-    fps,
-    confidence: 0.58,
-    source: "seated_box_jump_detector",
-    flags: ["first_post_takeoff_downward_or_foot_spike"]
-  });
+  if (!event) {
+    return null;
+  }
 
-  const audio = nearestAudioImpact(landing.timeSec, audioImpacts);
+  const nearestAudio = nearestAudioImpact(event.timeSec, audioImpacts);
 
-  if (audio && Math.abs(audio.timeSec - landing.timeSec) <= 0.16) {
-    landing.confidence = round(Math.min(0.95, landing.confidence + 0.2), 2);
-    landing.audioValidation = {
-      status: "matched",
-      nearestImpact: audio,
-      deltaSec: round(Math.abs(audio.timeSec - landing.timeSec), 4)
+  if (nearestAudio) {
+    const deltaSec = Math.abs(nearestAudio.timeSec - event.timeSec);
+
+    if (deltaSec <= 0.18) {
+      event.confidence = round(Math.min(0.95, event.confidence + 0.18), 2);
+      event.flags.push("audio_validated");
+
+      event.audioValidation = {
+        status: "matched",
+        nearestImpact: nearestAudio,
+        deltaSec: round(deltaSec, 4),
+        toleranceSec: 0.18
+      };
+    } else {
+      event.flags.push("audio_not_aligned");
+
+      event.audioValidation = {
+        status: "not_matched",
+        nearestImpact: nearestAudio,
+        deltaSec: round(deltaSec, 4),
+        toleranceSec: 0.18
+      };
+    }
+  }
+
+  if (best) {
+    event.phaseEvidence = {
+      upwardComVelocity: best.frame.upwardComVelocity,
+      ankleVelocity: best.frame.ankleVelocity,
+      comY: best.frame.comY
     };
-    landing.flags.push("audio_validated");
   }
 
-  return landing;
+  return event;
 }
 
-function buildPhases({ takeoff, landing }) {
+function buildFlightWindow(takeoff, landing) {
+  const durationSec = landing.timeSec - takeoff.timeSec;
+
+  if (!Number.isFinite(durationSec) || durationSec <= 0) {
+    return null;
+  }
+
+  return {
+    id: "flight_1",
+    type: "flight_window_candidate",
+    startFrame: takeoff.frameIndex,
+    endFrame: landing.frameIndex,
+    startTimeSec: takeoff.timeSec,
+    endTimeSec: landing.timeSec,
+    durationSec: round(durationSec, 4),
+    confidence: Math.min(takeoff.confidence, landing.confidence),
+    source: "seated_box_jump_takeoff_to_landing",
+    flags: [
+      "candidate_flight_window",
+      "box_jump_height_requires_landing_height_reference"
+    ]
+  };
+}
+
+function buildPhases({ frames, takeoff, landing }) {
   const phases = [];
 
   if (takeoff) {
     phases.push({
-      id: "prep_phase",
-      label: "Seated rock / preparation",
+      id: "rock_preload_phase",
+      label: "Seated rock / preload",
       startTimeSec: 0,
       endTimeSec: takeoff.timeSec,
-      flags: ["ignored_for_contact_count"]
+      flags: ["excluded_from_contact_count"]
     });
   }
 
@@ -216,26 +366,122 @@ function buildPhases({ takeoff, landing }) {
   }
 
   if (landing) {
+    const finalFrame = frames[frames.length - 1];
+
     phases.push({
-      id: "stabilisation_phase",
+      id: "landing_stabilisation_phase",
       label: "Landing / stabilisation",
       startTimeSec: landing.timeSec,
-      endTimeSec: null
+      endTimeSec: finalFrame?.timeSec || null
     });
   }
 
   return phases;
 }
 
-function buildFlags({ takeoff, landing }) {
+function buildDetectorFlags({
+  takeoff,
+  landing,
+  flightWindow,
+  phaseFlags
+}) {
   const flags = [
-    "seated_box_jump_detector_v0_1",
+    "seated_box_jump_biomechanical_detector_v0_2",
     "single_takeoff_single_landing_expected",
-    "prep_rocking_filtered"
+    "rocking_motion_filtered",
+    "contacts_suppressed_for_box_jump"
   ];
 
-  if (!takeoff) flags.push("no_primary_takeoff_detected");
+  if (!takeoff) flags.push("no_biomechanical_takeoff_detected");
   if (!landing) flags.push("no_landing_detected");
+  if (!flightWindow) flags.push("no_flight_window_detected");
+
+  if (phaseFlags.length) {
+    flags.push(...phaseFlags.map(flag => `phase_${flag}`));
+  }
 
   return flags;
+}
+
+function findPostTakeoffAudioImpact({
+  takeoffTimeSec,
+  audioImpacts,
+  minFlightSec,
+  maxFlightSec
+}) {
+  if (!audioImpacts?.length) return null;
+
+  return audioImpacts.find(impact => {
+    const dt = impact.timeSec - takeoffTimeSec;
+    return dt >= minFlightSec && dt <= maxFlightSec;
+  }) || null;
+}
+
+function emptyResult(flag) {
+  return {
+    detector: "seated_box_jump_biomechanical_v0_2",
+    candidates: [],
+    final: [],
+    takeOffs: [],
+    landings: [],
+    contacts: [],
+    phases: [],
+    flags: [
+      "seated_box_jump_biomechanical_detector_v0_2",
+      flag
+    ]
+  };
+}
+
+function isUsablePhaseFrame(frame) {
+  return (
+    frame &&
+    Number.isFinite(frame.tripleExtensionScore) &&
+    Number.isFinite(frame.unloadingScore) &&
+    Number.isFinite(frame.upwardComVelocity)
+  );
+}
+
+function weightedScore(items) {
+  const valid = items.filter(item =>
+    Number.isFinite(item.value) &&
+    Number.isFinite(item.weight)
+  );
+
+  if (!valid.length) return 0;
+
+  const totalWeight = valid.reduce(
+    (sum, item) => sum + item.weight,
+    0
+  );
+
+  if (!totalWeight) return 0;
+
+  return clamp(
+    valid.reduce(
+      (sum, item) => sum + item.value * item.weight,
+      0
+    ) / totalWeight,
+    0,
+    1
+  );
+}
+
+function normalisePositive(value, strongValue) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number <= 0) {
+    return 0;
+  }
+
+  return clamp(number / strongValue, 0, 1);
+}
+
+function safeNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
