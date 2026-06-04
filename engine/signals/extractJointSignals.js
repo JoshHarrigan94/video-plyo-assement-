@@ -114,11 +114,12 @@ export async function extractJointSignals(analysis) {
   };
 
   const phaseSignals = buildPhaseSignals({
-    joints,
-    velocities,
-    angles,
-    fps: analysis.video?.fps || 30
-  });
+  joints,
+  velocities,
+  angles,
+  sourceFrames: frames,
+  fps: analysis.video?.fps || 30
+});
 
   analysis.signals = {
     ...analysis.signals,
