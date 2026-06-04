@@ -52,15 +52,19 @@ export function makeEvent({
   type,
   frameIndex,
   fps,
+  timeSec = null,
   confidence,
   source,
   flags = []
-}) {
+})
   return {
     id,
     type,
     frameIndex,
-    timeSec: frameToTime(frameIndex, fps),
+    timeSec:
+  Number.isFinite(timeSec)
+    ? timeSec
+    : frameToTime(frameIndex, fps),
     confidence,
     source,
     refined: false,
