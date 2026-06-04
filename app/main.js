@@ -1,6 +1,7 @@
 import { runPlyoAnalysis } from "../engine/index.js";
 
 export async function startApp() {
+const movementUnderstanding = document.getElementById("movementUnderstanding");
 const analysisProgress = document.getElementById("analysisProgress");
 const progressLabel = document.getElementById("progressLabel");
 const progressPercent = document.getElementById("progressPercent");
@@ -109,6 +110,7 @@ nextEventBtn.disabled = true;
 setProgress(100, "Analysis complete.");
 renderSignalSummary(latestAnalysis);
 renderMetricSummary(latestAnalysis);
+renderMovementUnderstanding(latestAnalysis);
 renderEventTimeline(latestAnalysis);
 
 
@@ -165,6 +167,89 @@ downloadJsonBtn.addEventListener("click", () => {
 
   URL.revokeObjectURL(url);
 });
+
+function renderMovementUnderstanding(analysis) {
+  if (!movementUnderstanding) return;
+
+  const machine = analysis.signals?.movementStateMachine;
+  const phase = analysis.signals?.phase;
+
+  if (!machine?.summary) {
+    movementUnderstanding.innerHTML = `
+      <p class="hint">No movement state machine output available yet.</p>
+    `;
+    return;
+  }
+
+  const counts = machine.summary.stateCounts || {};
+  const states = [
+    "SETUP",
+    "PRELOAD",
+    "PROPULSION",
+    "TAKEOFF",
+    "FLIGHT",
+    "LANDING",
+    "STABILISATION"
+  ];
+
+  const stateHtml = states.map(state => {
+    const count = counts[state] || 0;
+    const statusClass = count > 0 ? "active" : "missing";
+
+    return `
+      <div class="state-pill ${statusClass}">
+        ${state}<br />${count}
+      </div>
+    `;
+  }).join("");
+
+  const transitions = machine.transitions || [];
+
+  const transitionHtml = transitions.length
+    ? transitions.slice(0, 12).map(item => `
+        <div class="transition-row">
+          ${item.from} → ${item.to} at ${formatTime(item.timeSec)}
+        </div>
+      `).join("")
+    : `<p class="hint">No transitions detected.</p>`;
+
+  const summary = phase?.summary || {};
+
+  movementUnderstanding.innerHTML = `
+    <div class="state-grid">
+      ${stateHtml}
+    </div>
+
+    <div class="evidence-grid">
+      <div class="evidence-item">
+        <span>Peak Triple Extension</span>
+        <strong>${formatNumber(summary.maxTripleExtensionScore, 3)}</strong>
+      </div>
+
+      <div class="evidence-item">
+        <span>Peak Unloading</span>
+        <strong>${formatNumber(summary.maxUnloadingScore, 3)}</strong>
+      </div>
+
+      <div class="evidence-item">
+        <span>Max Upward COM Velocity</span>
+        <strong>${formatNumber(summary.maxUpwardComVelocity, 4)}</strong>
+      </div>
+    </div>
+
+    <div class="transition-list">
+      ${transitionHtml}
+    </div>
+  `;
+}
+
+function formatNumber(value, decimals = 2) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return "--";
+
+  return number.toFixed(decimals);
+}
 
 function renderMetricSummary(analysis) {
   if (!metricSummary) return;
