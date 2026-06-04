@@ -247,6 +247,63 @@
   margin-bottom: 6px;
 }
 
+.event-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.event-type {
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.event-type.takeoff {
+  color: #38bdf8;
+}
+
+.event-type.landing {
+  color: #22c55e;
+}
+
+.event-type.contact {
+  color: #f59e0b;
+}
+
+.event-type.flight {
+  color: #a78bfa;
+}
+
+.event-detail {
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.event-confidence {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #e2e8f0;
+}
+
+@media (max-width: 620px) {
+  .event-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .summary-item strong {
   display: block;
   font-size: 1.15rem;
@@ -435,6 +492,14 @@
   <p class="hint">
     These are candidate-based outputs only. They are not validation-grade until event detection, audio alignment and error modelling mature.
   </p>
+</div>
+      
+      <div class="card">
+  <h2>Event Timeline</h2>
+
+  <div id="eventTimeline" class="event-timeline">
+    <p class="hint">Run analysis to see detected take-off, landing, flight and contact candidates.</p>
+  </div>
 </div>
       
         <div class="card">
