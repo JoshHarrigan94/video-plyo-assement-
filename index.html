@@ -364,6 +364,30 @@
         font-size: 2.4rem;
       }
     }
+    
+    .card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.card-header-row h2 {
+  margin: 0;
+}
+
+.timeline-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.timeline-controls button {
+  width: auto;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+    
   </style>
 </head>
 
@@ -514,11 +538,16 @@
   </p>
 </div>
       
-      <div class="card">
+     <div class="card-header-row">
   <h2>Event Timeline</h2>
 
-  <div id="eventTimeline" class="event-timeline">
-    <p class="hint">Run analysis to see detected take-off, landing, flight and contact candidates.</p>
+  <div class="timeline-controls">
+    <button type="button" class="secondary" id="prevEventBtn" disabled>
+      Prev
+    </button>
+    <button type="button" class="secondary" id="nextEventBtn" disabled>
+      Next
+    </button>
   </div>
 </div>
       
