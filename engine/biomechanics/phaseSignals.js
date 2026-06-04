@@ -2,6 +2,7 @@ export function buildPhaseSignals({
   joints = {},
   velocities = {},
   angles = {},
+  sourceFrames = [],
   fps = 30
 }) {
   const hipY = joints.hipY || [];
@@ -111,7 +112,9 @@ export function buildPhaseSignals({
 
     frames.push({
       frameIndex: i,
-      timeSec: frameToTime(i, fps),
+      timeSec:
+  sourceFrames[i]?.timeSec ??
+  frameToTime(i, fps),
 
       comY,
       hipY: clean(hipY[i]),
