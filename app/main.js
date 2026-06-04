@@ -532,4 +532,4 @@ function goToTimelineEvent(index) {
     drawPoseOverlay();
   }, 80);
 }
-
+}
