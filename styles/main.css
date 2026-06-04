@@ -666,3 +666,41 @@ h1 {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+.boot-failure {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fecaca;
+  padding: 12px;
+  border-radius: 14px;
+  line-height: 1.45;
+  font-size: 0.88rem;
+}
+
+.boot-failure ul {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.boot-failure details {
+  margin-top: 10px;
+}
+
+.boot-failure summary {
+  cursor: pointer;
+  color: #fee2e2;
+  font-weight: 800;
+}
+
+.boot-failure pre {
+  margin-top: 10px;
+  min-height: auto;
+  max-height: 260px;
+  font-size: 0.75rem;
+}
+
+.boot-failure button {
+  margin-top: 10px;
+  width: auto;
+  padding: 8px 12px;
+}
