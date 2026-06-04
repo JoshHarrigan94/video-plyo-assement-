@@ -8,7 +8,7 @@ const downloadJsonBtn = document.getElementById("downloadJsonBtn");
 const drawPoseBtn = document.getElementById("drawPoseBtn");
 const clearPoseBtn = document.getElementById("clearPoseBtn");
 const poseCanvas = document.getElementById("poseCanvas");
-
+const signalSummary = document.getElementById("signalSummary");
 let latestAnalysis = null;
 let latestVideoUrl = null;
 
@@ -64,7 +64,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   output.textContent = "Running analysis scaffold...";
-
+renderSignalSummary(latestAnalysis);
   downloadJsonBtn.disabled = true;
   drawPoseBtn.disabled = true;
   clearPoseBtn.disabled = true;
@@ -246,3 +246,95 @@ window.addEventListener("resize", () => {
   if (!latestAnalysis) return;
   drawPoseOverlay();
 });
+
+function renderSignalSummary(analysis) {
+  if (!signalSummary) return;
+
+  const framesProcessed = analysis.pose?.framesProcessed ?? 0;
+  const poseVisibility = analysis.pose?.visibility?.average;
+  const signalQuality = analysis.signals?.quality?.score;
+
+  const angles = analysis.signals?.angles || {};
+
+  const kneeRange = combinedRange([
+    angles.leftKneeAngle,
+    angles.rightKneeAngle
+  ]);
+
+  const hipRange = combinedRange([
+    angles.leftHipAngle,
+    angles.rightHipAngle
+  ]);
+
+  const ankleRange = combinedRange([
+    angles.leftAnkleAngle,
+    angles.rightAnkleAngle
+  ]);
+
+  signalSummary.innerHTML = `
+    <div class="summary-item">
+      <span>Frames</span>
+      <strong>${framesProcessed}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Pose Visibility</span>
+      <strong>${formatPercent(poseVisibility)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Signal Quality</span>
+      <strong>${formatPercentFrom100(signalQuality)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Knee Angle Range</span>
+      <strong>${formatRange(kneeRange)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Hip Angle Range</span>
+      <strong>${formatRange(hipRange)}</strong>
+    </div>
+
+    <div class="summary-item">
+      <span>Ankle Angle Range</span>
+      <strong>${formatRange(ankleRange)}</strong>
+    </div>
+  `;
+}
+
+function combinedRange(streams) {
+  const values = streams
+    .flat()
+    .filter(Number.isFinite);
+
+  if (!values.length) return null;
+
+  return {
+    min: Math.min(...values),
+    max: Math.max(...values)
+  };
+}
+
+function formatRange(range) {
+  if (!range) return "--";
+
+  return `${Math.round(range.min)}°–${Math.round(range.max)}°`;
+}
+
+function formatPercent(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return "--";
+
+  return `${Math.round(number * 100)}%`;
+}
+
+function formatPercentFrom100(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return "--";
+
+  return `${Math.round(number)}%`;
+}
