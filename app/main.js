@@ -450,25 +450,6 @@ eventTimeline.querySelectorAll(".event-row").forEach(row => {
     goToTimelineEvent(Number(row.dataset.index));
   });
 });
-    const time = Number(row.dataset.time);
-
-    if (!Number.isFinite(time)) return;
-
-    videoPreview.currentTime = Math.max(0, time - 0.08);
-
-    eventTimeline
-      .querySelectorAll(".event-row")
-      .forEach(item => item.classList.remove("active"));
-
-    row.classList.add("active");
-
-    videoPreview.pause();
-
-    setTimeout(() => {
-      drawPoseOverlay();
-    }, 80);
-  });
-});
 }
 
 function formatTime(value) {
