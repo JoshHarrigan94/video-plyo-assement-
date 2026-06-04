@@ -114,10 +114,16 @@ renderMovementUnderstanding(latestAnalysis);
 renderEventTimeline(latestAnalysis);
 
 
-    output.textContent = JSON.stringify(latestAnalysis, null, 2);
-    movementStates:
-  analysis.signals?.movementStateMachine?.summary
-    downloadJsonBtn.disabled = false;
+    const debugSummary = {
+  movementStates: latestAnalysis.signals?.movementStateMachine?.summary,
+  phaseSummary: latestAnalysis.signals?.phase?.summary,
+  comSummary: latestAnalysis.signals?.centreOfMass?.summary,
+  eventSummary: latestAnalysis.events
+};
+
+output.textContent = JSON.stringify(debugSummary, null, 2);
+
+downloadJsonBtn.disabled = false;
 
     const hasLandmarks =
       latestAnalysis.pose?.landmarksByFrame?.some(
@@ -572,17 +578,6 @@ function renderEventTimeline(analysis) {
     });
   }
 
-  rows.sort((a, b) => {
-    const aTime = Number.isFinite(a.time) ? a.time : Infinity;
-    const bTime = Number.isFinite(b.time) ? b.time : Infinity;
-    return aTime - bTime;
-  });
-  
-  timelineRows = rows;
-activeTimelineIndex = rows.length ? 0 : -1;
-prevEventBtn.disabled = rows.length <= 1;
-nextEventBtn.disabled = rows.length <= 1;
-  
   for (const impact of audioImpacts) {
   rows.push({
     type: "audio",
@@ -592,6 +587,17 @@ nextEventBtn.disabled = rows.length <= 1;
     confidence: impact.confidence
   });
 }
+
+rows.sort((a, b) => {
+  const aTime = Number.isFinite(a.time) ? a.time : Infinity;
+  const bTime = Number.isFinite(b.time) ? b.time : Infinity;
+  return aTime - bTime;
+});
+
+timelineRows = rows;
+activeTimelineIndex = rows.length ? 0 : -1;
+prevEventBtn.disabled = rows.length <= 1;
+nextEventBtn.disabled = rows.length <= 1;
 
   if (!rows.length) {
     eventTimeline.innerHTML = `
