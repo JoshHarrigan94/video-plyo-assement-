@@ -1,3 +1,9 @@
+import { buildCentreOfMassTrajectory }
+  from "../biomechanics/centreOfMass.js";
+
+import { buildMovementStateMachine }
+  from "../biomechanics/movementStateMachine.js";
+
 import { buildPhaseSignals } from "../biomechanics/phaseSignals.js";
 
 export async function extractJointSignals(analysis) {
@@ -121,6 +127,18 @@ export async function extractJointSignals(analysis) {
   fps: analysis.video?.fps || 30
 });
 
+const centreOfMass =
+  buildCentreOfMassTrajectory({
+    landmarksByFrame: frames,
+    athlete: analysis.athlete || {}
+  });
+
+const movementStateMachine =
+  buildMovementStateMachine({
+    phaseFrames: phaseSignals.frames,
+    com: centreOfMass
+  });
+
   analysis.signals = {
     ...analysis.signals,
 
@@ -140,6 +158,20 @@ export async function extractJointSignals(analysis) {
       flags: phaseSignals.flags
     },
 
+    centreOfMass: {
+  frames: centreOfMass.frames,
+  velocity: centreOfMass.velocity,
+  acceleration: centreOfMass.acceleration,
+  summary: centreOfMass.summary
+},
+
+movementStateMachine: {
+  states: movementStateMachine.states,
+  transitions: movementStateMachine.transitions,
+  summary: movementStateMachine.summary,
+  flags: movementStateMachine.flags
+},
+
     quality: {
       score: estimateSignalQuality(signals),
       flags: buildSignalFlags(signals)
@@ -151,7 +183,7 @@ export async function extractJointSignals(analysis) {
     level: "info",
     module: "signals",
     message:
-      `Joint signals extracted. ${phaseSignals.frames.length} phase frames generated.`
+  `Signals extracted. ${phaseSignals.frames.length} phase frames, ${centreOfMass.frames.length} COM frames and ${movementStateMachine.states.length} state frames generated.`
   });
 
   return analysis;
