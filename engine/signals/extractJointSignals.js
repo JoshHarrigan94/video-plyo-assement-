@@ -1,3 +1,5 @@
+
+import { buildForceTimeProxy } from "../biomechanics/forceTimeProxy.js";
 import { buildCentreOfMassTrajectory }
   from "../biomechanics/centreOfMass.js";
 
@@ -139,6 +141,14 @@ const movementStateMachine =
     com: centreOfMass
   });
 
+const forceTimeProxy =
+  buildForceTimeProxy({
+    centreOfMass,
+    phaseFrames: phaseSignals.frames,
+    athlete: analysis.athlete || {},
+    audioImpacts: analysis.audio?.impacts || []
+  });
+
   analysis.signals = {
     ...analysis.signals,
 
@@ -172,6 +182,15 @@ movementStateMachine: {
   flags: movementStateMachine.flags
 },
 
+forceTimeProxy: {
+  curve: forceTimeProxy.curve,
+  events: forceTimeProxy.events,
+  impulse: forceTimeProxy.impulse,
+  selectedJumpBout: forceTimeProxy.selectedJumpBout,
+  summary: forceTimeProxy.summary,
+  flags: forceTimeProxy.flags
+},
+
     quality: {
       score: estimateSignalQuality(signals),
       flags: buildSignalFlags(signals)
@@ -183,7 +202,7 @@ movementStateMachine: {
     level: "info",
     module: "signals",
     message:
-  `Signals extracted. ${phaseSignals.frames.length} phase frames, ${centreOfMass.frames.length} COM frames and ${movementStateMachine.states.length} state frames generated.`
+  `Signals extracted. ${phaseSignals.frames.length} phase frames, ${centreOfMass.frames.length} COM frames, ${movementStateMachine.states.length} state frames and ${forceTimeProxy.curve.length} force-proxy points generated.`
   });
 
   return analysis;
