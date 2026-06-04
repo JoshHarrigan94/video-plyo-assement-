@@ -227,6 +227,38 @@
       margin: 10px 0 0;
     }
 
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.summary-item {
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.summary-item span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  margin-bottom: 6px;
+}
+
+.summary-item strong {
+  display: block;
+  font-size: 1.15rem;
+  letter-spacing: -0.04em;
+}
+
+@media (max-width: 720px) {
+  .summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+    
     .stack {
       display: grid;
       gap: 12px;
@@ -340,7 +372,35 @@
     After analysis runs, draw the extracted MediaPipe landmarks over the video preview.
   </p>
 </div>
-
+<div class="card">
+  <h2>Signal Summary</h2>
+  <div id="signalSummary" class="summary-grid">
+    <div class="summary-item">
+      <span>Frames</span>
+      <strong>--</strong>
+    </div>
+    <div class="summary-item">
+      <span>Pose Visibility</span>
+      <strong>--</strong>
+    </div>
+    <div class="summary-item">
+      <span>Signal Quality</span>
+      <strong>--</strong>
+    </div>
+    <div class="summary-item">
+      <span>Knee Angle Range</span>
+      <strong>--</strong>
+    </div>
+    <div class="summary-item">
+      <span>Hip Angle Range</span>
+      <strong>--</strong>
+    </div>
+    <div class="summary-item">
+      <span>Ankle Angle Range</span>
+      <strong>--</strong>
+    </div>
+  </div>
+</div>
         <div class="card">
           <h2>Analysis Output</h2>
           <pre id="output">Upload a video, add athlete reference data, then run the scaffold.</pre>
