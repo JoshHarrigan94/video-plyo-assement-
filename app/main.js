@@ -1,3 +1,5 @@
+export async function startApp() {
+
 import { runPlyoAnalysis } from "../engine/index.js";
 const metricSummary = document.getElementById("metricSummary");
 const form = document.getElementById("analysisForm");
@@ -546,4 +548,5 @@ function goToTimelineEvent(index) {
   setTimeout(() => {
     drawPoseOverlay();
   }, 80);
+}
 }
