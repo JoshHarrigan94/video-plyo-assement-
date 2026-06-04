@@ -1,3 +1,5 @@
+import { buildPhaseSignals } from "../biomechanics/phaseSignals.js";
+
 export async function extractJointSignals(analysis) {
   const frames = analysis.pose.landmarksByFrame || [];
 
@@ -19,8 +21,8 @@ export async function extractJointSignals(analysis) {
 
   const signals = {
     hipY: [],
-    ankleY: [],
     kneeY: [],
+    ankleY: [],
 
     leftKneeAngle: [],
     rightKneeAngle: [],
@@ -30,8 +32,8 @@ export async function extractJointSignals(analysis) {
     rightAnkleAngle: [],
 
     hipVelocity: [],
-    ankleVelocity: [],
-    kneeVelocity: []
+    kneeVelocity: [],
+    ankleVelocity: []
   };
 
   for (let frameIndex = 0; frameIndex < frames.length; frameIndex++) {
@@ -61,19 +63,62 @@ export async function extractJointSignals(analysis) {
     signals.kneeY.push(kneeY);
     signals.ankleY.push(ankleY);
 
-    signals.leftKneeAngle.push(angleDegrees(leftHip, leftKnee, leftAnkle));
-    signals.rightKneeAngle.push(angleDegrees(rightHip, rightKnee, rightAnkle));
+    signals.leftKneeAngle.push(
+      angleDegrees(leftHip, leftKnee, leftAnkle)
+    );
 
-    signals.leftHipAngle.push(angleDegrees(leftShoulder, leftHip, leftKnee));
-    signals.rightHipAngle.push(angleDegrees(rightShoulder, rightHip, rightKnee));
+    signals.rightKneeAngle.push(
+      angleDegrees(rightHip, rightKnee, rightAnkle)
+    );
 
-    signals.leftAnkleAngle.push(angleDegrees(leftKnee, leftAnkle, leftFoot));
-    signals.rightAnkleAngle.push(angleDegrees(rightKnee, rightAnkle, rightFoot));
+    signals.leftHipAngle.push(
+      angleDegrees(leftShoulder, leftHip, leftKnee)
+    );
+
+    signals.rightHipAngle.push(
+      angleDegrees(rightShoulder, rightHip, rightKnee)
+    );
+
+    signals.leftAnkleAngle.push(
+      angleDegrees(leftKnee, leftAnkle, leftFoot)
+    );
+
+    signals.rightAnkleAngle.push(
+      angleDegrees(rightKnee, rightAnkle, rightFoot)
+    );
   }
 
   signals.hipVelocity = calculateVelocity(signals.hipY);
   signals.kneeVelocity = calculateVelocity(signals.kneeY);
   signals.ankleVelocity = calculateVelocity(signals.ankleY);
+
+  const joints = {
+    hipY: signals.hipY,
+    kneeY: signals.kneeY,
+    ankleY: signals.ankleY
+  };
+
+  const angles = {
+    leftKneeAngle: signals.leftKneeAngle,
+    rightKneeAngle: signals.rightKneeAngle,
+    leftHipAngle: signals.leftHipAngle,
+    rightHipAngle: signals.rightHipAngle,
+    leftAnkleAngle: signals.leftAnkleAngle,
+    rightAnkleAngle: signals.rightAnkleAngle
+  };
+
+  const velocities = {
+    hipVelocity: signals.hipVelocity,
+    kneeVelocity: signals.kneeVelocity,
+    ankleVelocity: signals.ankleVelocity
+  };
+
+  const phaseSignals = buildPhaseSignals({
+    joints,
+    velocities,
+    angles,
+    fps: analysis.video?.fps || 30
+  });
 
   analysis.signals = {
     ...analysis.signals,
@@ -84,25 +129,14 @@ export async function extractJointSignals(analysis) {
       framesProcessed: frames.length
     },
 
-    joints: {
-      hipY: signals.hipY,
-      kneeY: signals.kneeY,
-      ankleY: signals.ankleY
-    },
+    joints,
+    angles,
+    velocities,
 
-    angles: {
-      leftKneeAngle: signals.leftKneeAngle,
-      rightKneeAngle: signals.rightKneeAngle,
-      leftHipAngle: signals.leftHipAngle,
-      rightHipAngle: signals.rightHipAngle,
-      leftAnkleAngle: signals.leftAnkleAngle,
-      rightAnkleAngle: signals.rightAnkleAngle
-    },
-
-    velocities: {
-      hipVelocity: signals.hipVelocity,
-      kneeVelocity: signals.kneeVelocity,
-      ankleVelocity: signals.ankleVelocity
+    phase: {
+      frames: phaseSignals.frames,
+      summary: phaseSignals.summary,
+      flags: phaseSignals.flags
     },
 
     quality: {
@@ -115,14 +149,17 @@ export async function extractJointSignals(analysis) {
     time: new Date().toISOString(),
     level: "info",
     module: "signals",
-    message: "Joint signals and angles extracted."
+    message:
+      `Joint signals extracted. ${phaseSignals.frames.length} phase frames generated.`
   });
 
   return analysis;
 }
 
 function angleDegrees(a, b, c) {
-  if (!isPoint(a) || !isPoint(b) || !isPoint(c)) return null;
+  if (!isPoint(a) || !isPoint(b) || !isPoint(c)) {
+    return null;
+  }
 
   const ab = {
     x: a.x - b.x,
@@ -152,7 +189,10 @@ function averageCoordinate(a, b) {
 
   if (!values.length) return null;
 
-  return round(values.reduce((x, y) => x + y, 0) / values.length, 5);
+  return round(
+    values.reduce((x, y) => x + y, 0) / values.length,
+    5
+  );
 }
 
 function calculateVelocity(signal) {
@@ -199,8 +239,13 @@ function buildSignalFlags(signals) {
 
   const quality = estimateSignalQuality(signals);
 
-  if (quality < 50) flags.push("low_signal_completeness");
-  if (quality < 80) flags.push("some_joint_signals_missing");
+  if (quality < 50) {
+    flags.push("low_signal_completeness");
+  }
+
+  if (quality < 80) {
+    flags.push("some_joint_signals_missing");
+  }
 
   if (!signals.leftKneeAngle.some(Number.isFinite)) {
     flags.push("left_knee_angle_missing");
@@ -208,6 +253,22 @@ function buildSignalFlags(signals) {
 
   if (!signals.rightKneeAngle.some(Number.isFinite)) {
     flags.push("right_knee_angle_missing");
+  }
+
+  if (!signals.leftHipAngle.some(Number.isFinite)) {
+    flags.push("left_hip_angle_missing");
+  }
+
+  if (!signals.rightHipAngle.some(Number.isFinite)) {
+    flags.push("right_hip_angle_missing");
+  }
+
+  if (!signals.leftAnkleAngle.some(Number.isFinite)) {
+    flags.push("left_ankle_angle_missing");
+  }
+
+  if (!signals.rightAnkleAngle.some(Number.isFinite)) {
+    flags.push("right_ankle_angle_missing");
   }
 
   return flags;
@@ -226,6 +287,10 @@ function clamp(value, min, max) {
 }
 
 function round(value, decimals = 3) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) return null;
+
   const factor = Math.pow(10, decimals);
-  return Math.round(value * factor) / factor;
+  return Math.round(number * factor) / factor;
 }
