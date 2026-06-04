@@ -94,9 +94,9 @@ export async function extractJointSignals(analysis) {
     );
   }
 
-  signals.hipVelocity = calculateVelocity(signals.hipY);
-  signals.kneeVelocity = calculateVelocity(signals.kneeY);
-  signals.ankleVelocity = calculateVelocity(signals.ankleY);
+  signals.hipVelocity = calculateVelocity(signals.hipY, frames);
+signals.kneeVelocity = calculateVelocity(signals.kneeY, frames);
+signals.ankleVelocity = calculateVelocity(signals.ankleY, frames);
 
   const joints = {
     hipY: signals.hipY,
@@ -228,19 +228,34 @@ function averageCoordinate(a, b) {
   );
 }
 
-function calculateVelocity(signal) {
+function calculateVelocity(signal, sourceFrames = []) {
   const velocity = [null];
 
   for (let i = 1; i < signal.length; i++) {
     const previous = signal[i - 1];
     const current = signal[i];
 
-    if (!Number.isFinite(previous) || !Number.isFinite(current)) {
+    const previousTime = sourceFrames[i - 1]?.timeSec;
+    const currentTime = sourceFrames[i]?.timeSec;
+
+    if (
+      !Number.isFinite(previous) ||
+      !Number.isFinite(current) ||
+      !Number.isFinite(previousTime) ||
+      !Number.isFinite(currentTime)
+    ) {
       velocity.push(null);
       continue;
     }
 
-    velocity.push(round(current - previous, 5));
+    const dt = currentTime - previousTime;
+
+    if (!Number.isFinite(dt) || dt <= 0) {
+      velocity.push(null);
+      continue;
+    }
+
+    velocity.push(round((current - previous) / dt, 5));
   }
 
   return velocity;
