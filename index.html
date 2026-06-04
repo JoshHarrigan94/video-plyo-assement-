@@ -1,41 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <script type="module">
-  import {
-    FilesetResolver,
-    PoseLandmarker
-  } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304";
-
-  window.MediaPipeVision = {
-    FilesetResolver,
-    PoseLandmarker
-  };
-</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Video Plyo Assessment Engine</title>
-  
+
   <link rel="stylesheet" href="./styles/main.css" />
-  
+
+  <script type="module">
+    import {
+      FilesetResolver,
+      PoseLandmarker
+    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304";
+
+    window.MediaPipeVision = {
+      FilesetResolver,
+      PoseLandmarker
+    };
+  </script>
 </head>
 
 <body>
   <main class="app">
     <header>
-      <div id="bootStatus" class="boot-status" data-state="starting">
-  Starting application...
-</div>
       <div>
         <h1>Video Plyo<br />Assessment Engine</h1>
         <p class="subtitle">
           Technical workbench for video-first plyometric measurement using athlete reference data,
-          smart cropping, MediaPipe-ready pose extraction, audio impact detection, temporal refinement,
-          confidence scoring and error flags.
+          smart cropping, MediaPipe-ready pose extraction, audio impact detection, temporal
+          refinement, confidence scoring and error flags.
         </p>
       </div>
+
       <div class="pill">Engine v0.1</div>
     </header>
+
+    <div id="bootStatus" class="boot-status" data-state="starting">
+      Starting application...
+    </div>
 
     <section class="grid">
       <form class="card" id="analysisForm">
@@ -49,12 +52,28 @@
         <div class="row">
           <div>
             <label for="heightCm">Height</label>
-            <input id="heightCm" type="number" value="188" min="80" max="240" step="0.1" required />
+            <input
+              id="heightCm"
+              type="number"
+              value="188"
+              min="80"
+              max="240"
+              step="0.1"
+              required
+            />
           </div>
 
           <div>
             <label for="weightKg">Weight</label>
-            <input id="weightKg" type="number" value="100" min="20" max="250" step="0.1" required />
+            <input
+              id="weightKg"
+              type="number"
+              value="100"
+              min="20"
+              max="250"
+              step="0.1"
+              required
+            />
           </div>
         </div>
 
@@ -66,6 +85,7 @@
             <option value="female">Female</option>
             <option value="other">Other / self-described</option>
           </select>
+
           <p class="hint">
             Used only for anthropometric assumptions, model validation grouping and error modelling.
           </p>
@@ -73,6 +93,7 @@
 
         <div class="stack">
           <button type="submit">Run Analysis Scaffold</button>
+
           <button type="button" class="secondary" id="downloadJsonBtn" disabled>
             Download JSON
           </button>
@@ -83,109 +104,117 @@
         </p>
       </form>
 
-      <div class="card">
-  <h2>Pose Preview</h2>
+      <section class="stack">
+        <div class="card">
+          <h2>Pose Preview</h2>
 
-  <div class="pose-preview">
-    <video id="videoPreview" controls playsinline muted></video>
-    <canvas id="poseCanvas"></canvas>
-  </div>
+          <div class="pose-preview">
+            <video id="videoPreview" controls playsinline muted></video>
+            <canvas id="poseCanvas"></canvas>
+          </div>
 
-  <div class="row" style="margin-top: 12px;">
-    <button type="button" class="secondary" id="drawPoseBtn" disabled>
-      Draw Pose Overlay
-    </button>
+          <div class="row" style="margin-top: 12px;">
+            <button type="button" class="secondary" id="drawPoseBtn" disabled>
+              Draw Pose Overlay
+            </button>
 
-    <button type="button" class="secondary" id="clearPoseBtn" disabled>
-      Clear Overlay
-    </button>
-  </div>
+            <button type="button" class="secondary" id="clearPoseBtn" disabled>
+              Clear Overlay
+            </button>
+          </div>
 
-  <p class="hint">
-    After analysis runs, draw the extracted MediaPipe landmarks over the video preview.
-  </p>
-</div>
-<div class="card">
-  <h2>Signal Summary</h2>
-  <div id="signalSummary" class="summary-grid">
-    <div class="summary-item">
-      <span>Frames</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Pose Visibility</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Signal Quality</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Knee Angle Range</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Hip Angle Range</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Ankle Angle Range</span>
-      <strong>--</strong>
-    </div>
-  </div>
-</div>
+          <p class="hint">
+            After analysis runs, draw the extracted MediaPipe landmarks over the video preview.
+          </p>
+        </div>
 
-<div class="card">
-  <h2>Metric Summary</h2>
+        <div class="card">
+          <h2>Signal Summary</h2>
 
-  <div id="metricSummary" class="summary-grid">
-    <div class="summary-item">
-      <span>Contacts</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Flight Time</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Ground Contact</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Jump Height</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>RSI</span>
-      <strong>--</strong>
-    </div>
-    <div class="summary-item">
-      <span>Confidence</span>
-      <strong>--</strong>
-    </div>
-  </div>
+          <div id="signalSummary" class="summary-grid">
+            <div class="summary-item">
+              <span>Frames</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Pose Visibility</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Signal Quality</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Knee Angle Range</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Hip Angle Range</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Ankle Angle Range</span>
+              <strong>--</strong>
+            </div>
+          </div>
+        </div>
 
-  <p class="hint">
-    These are candidate-based outputs only. They are not validation-grade until event detection, audio alignment and error modelling mature.
-  </p>
-</div>
-      
+        <div class="card">
+          <h2>Metric Summary</h2>
 
-<div class="card">
-  <div class="card-header-row">
-    <h2>Event Timeline</h2>
+          <div id="metricSummary" class="summary-grid">
+            <div class="summary-item">
+              <span>Contacts</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Flight Time</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Ground Contact</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Jump Height</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>RSI</span>
+              <strong>--</strong>
+            </div>
+            <div class="summary-item">
+              <span>Confidence</span>
+              <strong>--</strong>
+            </div>
+          </div>
 
-    <div class="timeline-controls">
-      <button type="button" class="secondary" id="prevEventBtn" disabled>Prev</button>
-      <button type="button" class="secondary" id="nextEventBtn" disabled>Next</button>
-    </div>
-  </div>
+          <p class="hint">
+            These are candidate-based outputs only. They are not validation-grade until event detection,
+            audio alignment and error modelling mature.
+          </p>
+        </div>
 
-  <div id="eventTimeline" class="event-timeline">
-    <p class="hint">Run analysis to see detected events.</p>
-  </div>
-</div>
-      
+        <div class="card">
+          <div class="card-header-row">
+            <h2>Event Timeline</h2>
+
+            <div class="timeline-controls">
+              <button type="button" class="secondary" id="prevEventBtn" disabled>
+                Prev
+              </button>
+
+              <button type="button" class="secondary" id="nextEventBtn" disabled>
+                Next
+              </button>
+            </div>
+          </div>
+
+          <div id="eventTimeline" class="event-timeline">
+            <p class="hint">Run analysis to see detected events.</p>
+          </div>
+        </div>
+
         <div class="card">
           <h2>Analysis Output</h2>
           <pre id="output">Upload a video, add athlete reference data, then run the scaffold.</pre>
@@ -193,7 +222,7 @@
       </section>
     </section>
   </main>
-  
+
   <script type="module" src="./app/bootstrap.js"></script>
 </body>
 </html>
