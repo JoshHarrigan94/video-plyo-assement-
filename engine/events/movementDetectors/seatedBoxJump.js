@@ -234,17 +234,24 @@ function findBiomechanicalLanding({
   }
 
   let event = best
-    ? makeEvent({
-        id: "landing_1",
-        type: "landing_candidate",
-        frameIndex: best.frameIndex,
-        timeSec: audio.timeSec
-        fps,
-        confidence: round(clamp(0.42 + best.score * 0.38, 0.42, 0.82), 2),
-        source: "seated_box_jump_biomechanical_detector",
-        flags: ["post_takeoff_landing_pattern"]
-      })
-    : null;
+  ? makeEvent({
+      id: "landing_1",
+      type: "landing_candidate",
+      frameIndex: best.frameIndex,
+      timeSec: best.frame.timeSec,
+      fps,
+      confidence: round(
+        clamp(
+          0.42 + best.score * 0.38,
+          0.42,
+          0.82
+        ),
+        2
+      ),
+      source: "seated_box_jump_biomechanical_detector",
+      flags: ["post_takeoff_landing_pattern"]
+    })
+  : null;
 
   const audio = takeoff
     ? findPostTakeoffAudioImpact({
