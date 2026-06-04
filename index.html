@@ -1,1 +1,33 @@
-//incoming
+import { createAnalysisSession } from "./session.js";
+import { ingestVideo } from "./ingestion/ingestVideo.js";
+import { buildAthleteReference } from "./athlete/athleteProfile.js";
+import { assessVideoQuality } from "./quality/videoQuality.js";
+import { runSmartCrop } from "./vision/smartCrop.js";
+import { runPoseDetection } from "./vision/poseDetector.js";
+import { cleanLandmarks } from "./vision/landmarkCleaner.js";
+import { extractJointSignals } from "./signals/jointSignals.js";
+import { detectAudioImpacts } from "./audio/impactDetector.js";
+import { detectMovementEvents } from "./events/eventDetector.js";
+import { refineEventsWithML } from "./ml/temporalRefiner.js";
+import { extractMetrics } from "./metrics/extractMetrics.js";
+import { estimateConfidenceAndError } from "./confidence/confidenceEngine.js";
+
+export async function runPlyoAnalysis(input) {
+  let analysis = createAnalysisSession(input);
+
+  analysis = await ingestVideo(analysis);
+  analysis = await buildAthleteReference(analysis);
+  analysis = await assessVideoQuality(analysis);
+  analysis = await runSmartCrop(analysis);
+  analysis = await runPoseDetection(analysis);
+  analysis = await cleanLandmarks(analysis);
+  analysis = await extractJointSignals(analysis);
+  analysis = await detectAudioImpacts(analysis);
+  analysis = await detectMovementEvents(analysis);
+  analysis = await refineEventsWithML(analysis);
+  analysis = await extractMetrics(analysis);
+  analysis = await estimateConfidenceAndError(analysis);
+
+  analysis.completedAt = new Date().toISOString();
+  return analysis;
+}
