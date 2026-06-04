@@ -94,6 +94,7 @@ nextEventBtn.disabled = true;
       heightCm: document.getElementById("heightCm").value,
       weightKg: document.getElementById("weightKg").value,
       sexGender: document.getElementById("sexGender").value,
+      movementType: document.getElementById("movementType").value,
       useSmartCrop: true,
       useAudio: true,
       useMLRefinement: false
