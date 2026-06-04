@@ -1,5 +1,5 @@
 import { runPlyoAnalysis } from "../engine/index.js";
-
+const metricSummary = document.getElementById("metricSummary");
 const form = document.getElementById("analysisForm");
 const videoFileInput = document.getElementById("videoFile");
 const videoPreview = document.getElementById("videoPreview");
@@ -65,6 +65,7 @@ form.addEventListener("submit", async (event) => {
 
   output.textContent = "Running analysis scaffold...";
 renderSignalSummary(latestAnalysis);
+renderMetricSummary(latestAnalysis);
   downloadJsonBtn.disabled = true;
   drawPoseBtn.disabled = true;
   clearPoseBtn.disabled = true;
