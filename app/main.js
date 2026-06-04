@@ -418,13 +418,35 @@ function renderEventTimeline(analysis) {
     return;
   }
 
-  eventTimeline.innerHTML = rows.map(row => `
-    <div class="event-row">
-      <div class="event-type ${row.type}">${row.label}</div>
-      <div class="event-detail">${row.detail}</div>
-      <div class="event-confidence">${formatConfidence(row.confidence)}</div>
-    </div>
-  `).join("");
+  eventTimeline.innerHTML = rows.map((row, index) => `
+  <div class="event-row" data-time="${row.time}" data-index="${index}">
+    <div class="event-type ${row.type}">${row.label}</div>
+    <div class="event-detail">${row.detail}</div>
+    <div class="event-confidence">${formatConfidence(row.confidence)}</div>
+  </div>
+`).join("");
+
+eventTimeline.querySelectorAll(".event-row").forEach(row => {
+  row.addEventListener("click", () => {
+    const time = Number(row.dataset.time);
+
+    if (!Number.isFinite(time)) return;
+
+    videoPreview.currentTime = Math.max(0, time - 0.08);
+
+    eventTimeline
+      .querySelectorAll(".event-row")
+      .forEach(item => item.classList.remove("active"));
+
+    row.classList.add("active");
+
+    videoPreview.pause();
+
+    setTimeout(() => {
+      drawPoseOverlay();
+    }, 80);
+  });
+});
 }
 
 function formatTime(value) {
