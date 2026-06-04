@@ -468,3 +468,39 @@ h1 {
     flex-direction: column;
   }
 }
+
+.analysis-progress {
+  margin-bottom: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  background: rgba(15, 23, 42, 0.72);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.progress-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin-bottom: 10px;
+}
+
+.progress-topline strong {
+  color: var(--text-soft);
+}
+
+.progress-track {
+  height: 10px;
+  background: var(--panel-dark);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--good));
+  transition: width 220ms ease;
+}
