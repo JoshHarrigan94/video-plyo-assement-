@@ -200,9 +200,9 @@ function getProcessingSettings({
     : 0;
 
   const isLongVideo = duration > 8;
-  const sampleFps = isLongVideo ? 4 : 6;
+  const sampleFps = isLongVideo ? 12 : 20;
 
-  const maxFrames = isLongVideo ? 48 : 72;
+  const maxFrames = isLongVideo ? 160 : 180;
 
   const frameCount = Math.min(
     Math.max(1, Math.ceil(duration * sampleFps)),
