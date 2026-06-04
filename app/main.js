@@ -1,6 +1,10 @@
 import { runPlyoAnalysis } from "../engine/index.js";
 
 export async function startApp() {
+const analysisProgress = document.getElementById("analysisProgress");
+const progressLabel = document.getElementById("progressLabel");
+const progressPercent = document.getElementById("progressPercent");
+const progressFill = document.getElementById("progressFill");
 const metricSummary = document.getElementById("metricSummary");
 const form = document.getElementById("analysisForm");
 const videoFileInput = document.getElementById("videoFile");
@@ -72,7 +76,7 @@ form.addEventListener("submit", async (event) => {
     output.textContent = "Please upload a video first.";
     return;
   }
-
+  setProgress(5, "Preparing video analysis...");
   output.textContent = "Running analysis scaffold...";
 
   downloadJsonBtn.disabled = true;
@@ -95,7 +99,13 @@ nextEventBtn.disabled = true;
       useMLRefinement: false
     };
 
-    latestAnalysis = await runPlyoAnalysis(input);
+    latestAnalysis = await runPlyoAnalysis(input, {
+  onProgress: ({ percent, message }) => {
+    setProgress(percent, message);
+  }
+});
+
+setProgress(100, "Analysis complete.");
 renderSignalSummary(latestAnalysis);
 renderMetricSummary(latestAnalysis);
 renderEventTimeline(latestAnalysis);
@@ -153,6 +163,17 @@ downloadJsonBtn.addEventListener("click", () => {
 
   URL.revokeObjectURL(url);
 });
+
+function setProgress(percent, label) {
+  if (!analysisProgress || !progressFill || !progressPercent || !progressLabel) return;
+
+  const cleanPercent = Math.max(0, Math.min(100, Math.round(percent)));
+
+  analysisProgress.hidden = false;
+  progressFill.style.width = `${cleanPercent}%`;
+  progressPercent.textContent = `${cleanPercent}%`;
+  progressLabel.textContent = label;
+}
 
 function drawPoseOverlay() {
   if (!latestAnalysis) return;
