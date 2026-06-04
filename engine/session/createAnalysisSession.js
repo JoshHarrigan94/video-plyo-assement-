@@ -5,7 +5,6 @@ export function createAnalysisSession(input = {}) {
     id: createSessionId(),
     createdAt: now,
     updatedAt: now,
-
     status: "created",
 
     input: {
