@@ -14,21 +14,27 @@ export async function buildAthleteReference(analysis) {
     flags.push("height_outside_expected_range");
   }
 
-  if (weightKg && (weightKg < 30 || weightKg > 220)) {
+  if (weightKg && (weightKg < 30 || weightKg > 250)) {
     flags.push("weight_outside_expected_range");
   }
+
+  const bmi =
+    heightCm && weightKg
+      ? weightKg / Math.pow(heightCm / 100, 2)
+      : null;
 
   const reference = {
     heightCm,
     heightM: heightCm ? heightCm / 100 : null,
     weightKg,
     massKg: weightKg,
+    bmi,
     sexGender,
     flags
   };
 
   const anthropometrics = estimateAnthropometrics(reference);
-  const scaling = buildScalingModel(reference, anthropometrics);
+  const scaling = buildScalingModel(reference);
 
   analysis.athlete.reference = reference;
   analysis.athlete.anthropometrics = anthropometrics;
@@ -39,7 +45,7 @@ export async function buildAthleteReference(analysis) {
     level: flags.length ? "warn" : "info",
     module: "athlete",
     message: flags.length
-      ? `Athlete reference created with flags: ${flags.join(", ")}`
+      ? `Athlete reference created with ${flags.length} flag(s).`
       : "Athlete reference created."
   });
 
@@ -47,100 +53,69 @@ export async function buildAthleteReference(analysis) {
 }
 
 function estimateAnthropometrics(reference) {
-  const heightM = reference.heightM;
-
-  if (!heightM) {
+  if (!reference.heightM) {
     return {
-      status: "insufficient_reference",
+      status: "insufficient_data",
       flags: ["missing_height"]
     };
   }
 
-  /*
-    These are deliberately simple first-pass body-segment estimates.
-
-    They are not treated as diagnostic truth.
-    They support:
-    - scale plausibility
-    - centre-of-mass approximation
-    - force / impulse estimation
-    - error modelling
-
-    Later we can replace these with:
-    - camera-calibrated scaling
-    - user-measured limb lengths
-    - MediaPipe-derived proportions
-    - sex-specific segment models
-  */
+  const h = reference.heightM;
 
   return {
     status: "estimated",
 
-    statureM: heightM,
+    /*
+      First-pass anthropometric model.
 
-    approximateSegmentsM: {
-      headNeck: heightM * 0.13,
-      torso: heightM * 0.30,
-      thigh: heightM * 0.245,
-      shank: heightM * 0.246,
-      foot: heightM * 0.152,
-      upperArm: heightM * 0.186,
-      forearm: heightM * 0.146
+      Future versions:
+      - measured limb lengths
+      - MediaPipe-derived proportions
+      - camera calibration
+      - population-specific models
+    */
+
+    estimatedSegmentLengthsM: {
+      torso: h * 0.30,
+      thigh: h * 0.245,
+      shank: h * 0.246,
+      foot: h * 0.152,
+      upperArm: h * 0.186,
+      forearm: h * 0.146
     },
 
-    approximateMassFractions: {
-      headNeck: 0.081,
-      trunk: 0.497,
-      upperArmEach: 0.028,
-      forearmEach: 0.016,
-      handEach: 0.006,
-      thighEach: 0.100,
-      shankEach: 0.0465,
-      footEach: 0.0145
-    },
+    estimatedCentreOfMassHeightM: h * 0.56,
 
-    flags: ["anthropometrics_estimated_not_measured"]
+    flags: [
+      "segment_lengths_estimated",
+      "centre_of_mass_estimated"
+    ]
   };
 }
 
-function buildScalingModel(reference, anthropometrics) {
-  if (!reference.heightM || anthropometrics.status !== "estimated") {
-    return {
-      status: "not_available",
-      method: null,
-      flags: ["insufficient_athlete_reference"]
-    };
-  }
-
+function buildScalingModel(reference) {
   return {
-    status: "ready",
-    method: "height_reference_first_pass",
+    status: reference.heightCm ? "ready" : "pending",
 
-    knownReference: {
-      type: "stature",
-      valueM: reference.heightM
-    },
+    referenceType: "athlete_height",
 
-    /*
-      Pixel-to-metre scaling cannot be final until we have pose landmarks
-      and/or a known full-body visible frame.
-
-      This object prepares the contract for the later scaling stage.
-    */
-    pixelToMetre: null,
+    pixelToMetreScale: null,
 
     assumptions: [
-      "athlete height used as first-pass real-world reference",
-      "full-body visibility improves scale estimation",
-      "camera perspective may distort vertical and horizontal scaling",
-      "future versions should estimate perspective correction"
+      "full body visible improves scaling",
+      "height used as primary reference",
+      "camera perspective not yet corrected"
     ],
 
-    flags: ["scale_pending_pose_landmarks"]
+    flags: [
+      "scale_pending_pose_detection"
+    ]
   };
 }
 
 function toNumber(value) {
   const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+  return Number.isFinite(number)
+    ? number
+    : null;
 }
