@@ -9,6 +9,82 @@ export function detectSeatedBoxJumpEvents({
   audioImpacts,
   fps
 }) {
+  const forceBout =
+    analysis.signals?.forceTimeProxy?.selectedJumpBout;
+
+  if (forceBout) {
+    const takeoff = makeEvent({
+      id: "takeoff_1",
+      type: "takeoff_candidate",
+      frameIndex: forceBout.takeoffFrame,
+      timeSec: forceBout.takeoffTimeSec,
+      fps,
+      confidence: forceBout.confidence,
+      source: "force_time_proxy_selected_bout",
+      flags: [
+        "force_time_proxy_selected",
+        ...forceBout.flags
+      ]
+    });
+
+    const landing = makeEvent({
+      id: "landing_1",
+      type: "landing_candidate",
+      frameIndex: forceBout.landingFrame,
+      timeSec: forceBout.landingTimeSec,
+      fps,
+      confidence: forceBout.confidence,
+      source: "force_time_proxy_selected_bout",
+      flags: [
+        "force_time_proxy_selected",
+        ...forceBout.flags
+      ]
+    });
+
+    const flightWindow = buildFlightWindow(
+      takeoff,
+      landing
+    );
+
+    return {
+      detector: "seated_box_jump_force_time_proxy_v0_3",
+
+      candidates: [
+        takeoff,
+        landing,
+        ...(flightWindow ? [flightWindow] : [])
+      ],
+
+      final: [
+        takeoff,
+        landing,
+        ...(flightWindow ? [flightWindow] : [])
+      ],
+
+      takeOffs: [takeoff],
+      landings: [landing],
+
+      contacts: [],
+
+      phases: [
+        {
+          id: "force_time_selected_bout",
+          label: "Dominant jump bout",
+          startTimeSec: forceBout.unweightingTimeSec,
+          endTimeSec: forceBout.landingTimeSec,
+          durationSec: forceBout.flightDurationSec,
+          flags: forceBout.flags
+        }
+      ],
+
+      flags: [
+        "seated_box_jump_force_time_proxy_v0_3",
+        "dominant_bout_selected",
+        "contacts_suppressed_for_box_jump"
+      ]
+    };
+  }
+
   const phase = analysis.signals?.phase;
   const frames = phase?.frames || [];
 
@@ -52,11 +128,6 @@ export function detectSeatedBoxJumpEvents({
 
     takeOffs: takeoff ? [takeoff] : [],
     landings: landing ? [landing] : [],
-
-    /*
-      For seated box jump, we deliberately do not infer repeated contacts.
-      This prevents rocker/prep oscillations being counted as contacts.
-    */
     contacts: [],
 
     phases: buildPhases({
