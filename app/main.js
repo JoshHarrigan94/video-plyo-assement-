@@ -113,7 +113,8 @@ renderEventTimeline(latestAnalysis);
 
 
     output.textContent = JSON.stringify(latestAnalysis, null, 2);
-
+    movementStates:
+  analysis.signals?.movementStateMachine?.summary
     downloadJsonBtn.disabled = false;
 
     const hasLandmarks =
