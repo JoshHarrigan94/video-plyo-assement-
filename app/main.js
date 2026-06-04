@@ -350,7 +350,7 @@ function renderEventTimeline(analysis) {
   const landings = analysis.events?.landings || [];
   const contactWindows = analysis.metrics?.windows?.contact || [];
   const flightWindows = analysis.metrics?.windows?.flight || [];
-
+  const audioImpacts = analysis.audio?.impacts || [];
   const rows = [];
 
   for (const event of takeOffs) {
@@ -398,6 +398,16 @@ function renderEventTimeline(analysis) {
     const bTime = Number.isFinite(b.time) ? b.time : Infinity;
     return aTime - bTime;
   });
+  
+  for (const impact of audioImpacts) {
+  rows.push({
+    type: "audio",
+    time: impact.timeSec,
+    label: "Audio",
+    detail: `${formatTime(impact.timeSec)} · RMS ${impact.rms} · peak ${impact.peak} · ${formatFlags(impact.flags)}`,
+    confidence: impact.confidence
+  });
+}
 
   if (!rows.length) {
     eventTimeline.innerHTML = `
