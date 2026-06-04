@@ -477,12 +477,14 @@ function findLandingAfterTakeoff({
       point.landingScore * 0.65 +
       positiveScore(point.forceProxy, 2.2) * 0.35;
 
-    if (!best || candidateScore > best.score) {
-      best = {
-        point,
-        score: candidateScore
-      };
-    }
+    if (candidateScore >= 0.35) {
+  best = {
+    point,
+    score: candidateScore
+  };
+
+  break;
+}
   }
 
   if (!best || best.score < 0.35) {
