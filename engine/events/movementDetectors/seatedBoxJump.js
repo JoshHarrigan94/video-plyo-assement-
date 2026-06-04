@@ -142,6 +142,7 @@ function findBiomechanicalTakeoff({ frames, fps }) {
     id: "takeoff_1",
     type: "takeoff_candidate",
     frameIndex: best.frameIndex,
+    timeSec: best.frame.timeSec,
     fps,
     confidence: round(clamp(0.48 + best.score * 0.42, 0.48, 0.9), 2),
     source: "seated_box_jump_biomechanical_detector",
@@ -237,6 +238,7 @@ function findBiomechanicalLanding({
         id: "landing_1",
         type: "landing_candidate",
         frameIndex: best.frameIndex,
+        timeSec: audio.timeSec
         fps,
         confidence: round(clamp(0.42 + best.score * 0.38, 0.42, 0.82), 2),
         source: "seated_box_jump_biomechanical_detector",
