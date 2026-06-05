@@ -461,7 +461,7 @@ function findLandingAfterTakeoff({
   audioImpacts
 }) {
   const minFlightSec = 0.12;
-  const maxFlightSec = 1.6;
+  const maxFlightSec = 1.0;
 
   const window = curve.filter(point =>
     point.timeSec >= takeoff.timeSec + minFlightSec &&
