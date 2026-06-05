@@ -460,7 +460,7 @@ function findLandingAfterTakeoff({
   takeoff,
   audioImpacts
 }) {
-  const minFlightSec = 0.12;
+  const minFlightSec = 0.22;
   const maxFlightSec = 1.0;
 
   const window = curve.filter(point =>
@@ -472,12 +472,16 @@ function findLandingAfterTakeoff({
 
   let best = null;
 
+  const hasStartedDescending =
+  Number.isFinite(point.upwardVelocity) &&
+  point.upwardVelocity <= 0.05;
+
   for (const point of window) {
     const candidateScore =
       point.landingScore * 0.65 +
       positiveScore(point.forceProxy, 2.2) * 0.35;
 
-    if (candidateScore >= 0.35) {
+    if (candidateScore >= 0.35 && hasStartedDescending) {
   best = {
     point,
     score: candidateScore
